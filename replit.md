@@ -110,14 +110,17 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
 ✅ Tratamento de erros em todas as rotas
 ✅ Axios instalado para chamadas HTTP
 
-### Mudanças Recentes (13 Nov 2025 17:40)
+### Mudanças Recentes (13 Nov 2025 17:45)
 - ✅ Dashboard conectado aos dados reais do Dapic com métricas consolidadas
 - ✅ Páginas Clientes, Vendas, Produtos, Contas a Pagar conectadas aos hooks useDapic*
+- ✅ Parsing de moeda brasileira (1.234,56) implementado com parseBrazilianCurrency e formatBrazilianCurrency
 - ✅ Tratamento de erros consolidados exibido ao usuário
 - ✅ Loading states e skeleton placeholders em todas as páginas
 - ✅ StoreSelector funcional em Dashboard e páginas Dapic
 - ✅ Normalização de dados e proteção contra valores nulos/undefined
-- 🔄 Em progresso: Conectar Chat, Calendário, Avisos e Mensagens Anônimas ao backend
+- ✅ Chat conectado ao backend real com WebSocket, lista de usuários do sistema, envio de mensagens em tempo real
+- ✅ WebSocket corrigido com porta e host corretos, invalidação de cache específica para conversas
+- 🔄 Em progresso: Conectar Calendário, Avisos e Mensagens Anônimas ao backend
 
 ### Próximos Passos
 - Conectar Chat ao backend real com WebSocket

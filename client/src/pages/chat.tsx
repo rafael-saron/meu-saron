@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { useUser } from "@/contexts/user-context";
+import { useUser } from "@/lib/user-context";
 import { useUsers } from "@/hooks/use-users";
 import { useChatMessages, useSendMessage } from "@/hooks/use-chat";
 import { useWebSocket } from "@/hooks/use-websocket";
