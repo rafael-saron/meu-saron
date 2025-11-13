@@ -168,7 +168,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/chat/messages", async (req, res) => {
+  const sendChatMessageHandler = async (req: express.Request, res: express.Response) => {
     try {
       const validatedData = insertChatMessageSchema.parse(req.body);
       const newMessage = await storage.createChatMessage(validatedData);
@@ -197,7 +197,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: error.message 
       });
     }
-  });
+  };
+
+  app.post("/api/chat/messages", sendChatMessageHandler);
+  app.post("/api/chat/send", sendChatMessageHandler);
 
   app.get("/api/schedule", async (req, res) => {
     try {
