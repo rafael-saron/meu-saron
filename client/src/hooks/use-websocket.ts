@@ -13,7 +13,9 @@ export function useWebSocket({ userId, onMessage }: UseWebSocketOptions) {
     if (!userId) return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws?userId=${userId}`;
+    const host = window.location.hostname;
+    const port = window.location.port || (protocol === "wss:" ? "443" : "80");
+    const wsUrl = `${protocol}//${host}:${port}/ws?userId=${userId}`;
 
     try {
       ws.current = new WebSocket(wsUrl);
