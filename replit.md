@@ -123,13 +123,15 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
   - Soft delete (isActive=false) em vez de exclusão física
 - ✅ **Contador de Mensagens Não Lidas no Chat**:
   - Badge no sidebar exibindo número de mensagens não lidas
-  - Backend endpoint GET /api/chat/unread-count/:userId
+  - Backend endpoint GET /api/chat/unread-count/:userId (sem auto-mark)
+  - Backend endpoint POST /api/chat/mark-as-read (marca como lido explicitamente)
   - Frontend hook useUnreadCount com polling de 5 segundos (fallback)
-  - **WebSocket global** no App.tsx para atualizações em tempo real em todas as rotas
-  - **Mutation explícita** useMarkMessagesAsRead para marcar mensagens como lidas
-  - Invalidação imediata do contador quando mensagens são lidas ou enviadas
-  - Tracking por ID da última mensagem para detecção precisa de mudanças
+  - **WebSocket global** no App.tsx para atualizações em tempo real
+  - **Mutation explícita** dispara em toda conversa aberta + nova mensagem
+  - Debounce de 100ms previne chamadas excessivas
+  - Tracking por `${selectedUserId}-${lastMessageId}` detecta mudanças
   - Suporte multi-tab (invalidação para sender e receiver)
+  - **Limitação conhecida**: Falhas de mutation requerem troca de conversa para retry (baixo impacto, coberto por polling/WebSocket)
 - ✅ **Correções de Tipo**: fullName (não name), content (não message)
 - ✅ **Segurança Melhorada**:
   - Validação de campos permitidos em PATCH /api/users/:id
