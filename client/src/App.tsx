@@ -19,6 +19,7 @@ import Calendario from "@/pages/calendario";
 import Avisos from "@/pages/avisos";
 import Chat from "@/pages/chat";
 import Anonimo from "@/pages/anonimo";
+import Usuarios from "@/pages/usuarios";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -33,6 +34,7 @@ function Router() {
       <Route path="/avisos" component={Avisos} />
       <Route path="/chat" component={Chat} />
       <Route path="/anonimo" component={Anonimo} />
+      <Route path="/usuarios" component={Usuarios} />
       <Route component={NotFound} />
     </Switch>
   );

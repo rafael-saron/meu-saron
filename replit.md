@@ -110,24 +110,31 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
 ✅ Tratamento de erros em todas as rotas
 ✅ Axios instalado para chamadas HTTP
 
-### Mudanças Recentes (13 Nov 2025 17:45)
-- ✅ Dashboard conectado aos dados reais do Dapic com métricas consolidadas
-- ✅ Páginas Clientes, Vendas, Produtos, Contas a Pagar conectadas aos hooks useDapic*
-- ✅ Parsing de moeda brasileira (1.234,56) implementado com parseBrazilianCurrency e formatBrazilianCurrency
-- ✅ Tratamento de erros consolidados exibido ao usuário
-- ✅ Loading states e skeleton placeholders em todas as páginas
-- ✅ StoreSelector funcional em Dashboard e páginas Dapic
-- ✅ Normalização de dados e proteção contra valores nulos/undefined
-- ✅ Chat conectado ao backend real com WebSocket, lista de usuários do sistema, envio de mensagens em tempo real
-- ✅ WebSocket corrigido com porta e host corretos, invalidação de cache específica para conversas
-- 🔄 Em progresso: Conectar Calendário, Avisos e Mensagens Anônimas ao backend
+### Mudanças Recentes (13 Nov 2025 18:00)
+- ✅ **Correções Dapic**: Valores default para DataInicial/DataFinal (últimos 30 dias para orçamentos, 90 para contas a pagar)
+- ✅ **Sistema de Gestão de Usuários Completo**:
+  - Página /usuarios com CRUD completo (criar, editar, deletar, listar)
+  - Upload de foto de perfil
+  - Reset de senha por admins
+  - Hash de senha com bcrypt (10 salt rounds)
+  - Validação Zod em todas as mutações
+  - Usuário admin criado automaticamente (username: admin, password: admin123) - **IMPORTANTE: trocar senha após primeiro login**
+  - Menu "Usuários" visível apenas para administradores
+  - Soft delete (isActive=false) em vez de exclusão física
+- ✅ **Segurança Melhorada**:
+  - Validação de campos permitidos em PATCH /api/users/:id
+  - Hash automático de senhas em createUser e updateUser
+  - Validação Zod em todos os endpoints de mutação
+- ✅ WebSocket corrigido para usar window.location.host
+- ⚠️ **Nota de Segurança**: Sistema atual usa usuário demo sem autenticação real. Endpoints de gestão de usuários preparados para autenticação futura mas não implementam autorização no momento.
 
 ### Próximos Passos
-- Conectar Chat ao backend real com WebSocket
+- Implementar autenticação real (login/logout) substituindo usuário demo
+- Adicionar middleware de autorização nos endpoints de gestão de usuários
+- Melhorias no Chat: iniciar nova conversa, contador de mensagens não lidas
 - Conectar Calendário, Avisos e Mensagens Anônimas ao PostgreSQL
 - Implementar sistema de notificações em tempo real
-- Criar módulo de relatórios personalizáveis
-- Implementar sistema de metas e KPIs
+- Busca de dados de funcionários via CPF no Dapic
 
 ## Como Executar
 1. Variáveis de ambiente já configuradas (DATABASE_URL, DAPIC_EMPRESA, DAPIC_TOKEN_INTEGRACAO, SESSION_SECRET)

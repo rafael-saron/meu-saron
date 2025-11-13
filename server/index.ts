@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { DatabaseStorage } from "./storage";
 
 const app = express();
 
@@ -46,7 +47,35 @@ app.use((req, res, next) => {
   next();
 });
 
+async function ensureAdminUser() {
+  try {
+    const storage = new DatabaseStorage();
+    const existingAdmin = await storage.getUserByUsername("admin");
+    
+    if (!existingAdmin || !existingAdmin.isActive) {
+      if (existingAdmin && !existingAdmin.isActive) {
+        await storage.updateUser(existingAdmin.id, { isActive: true });
+        log("✅ Admin user reactivated");
+      } else {
+        await storage.createUser({
+          username: "admin",
+          email: "admin@saron.com.br",
+          password: "admin123",
+          fullName: "Administrador",
+          role: "administrador",
+          isActive: true,
+        });
+        log("✅ Admin user created with default credentials");
+      }
+    }
+  } catch (error) {
+    console.error("Error ensuring admin user:", error);
+  }
+}
+
 (async () => {
+  await ensureAdminUser();
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

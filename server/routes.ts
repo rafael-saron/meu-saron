@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import { z } from "zod";
 import { storage } from "./storage";
 import { dapicService } from "./dapic";
 import {
@@ -71,6 +72,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error creating user:', error);
       res.status(400).json({ 
         error: "Invalid user data",
+        message: error.message 
+      });
+    }
+  });
+
+  app.patch("/api/users/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const updateSchema = z.object({
+        fullName: z.string().min(3).optional(),
+        email: z.string().email().optional(),
+        role: z.enum(['administrador', 'gerente', 'vendedor', 'financeiro']).optional(),
+        password: z.string().min(6).optional(),
+        avatar: z.string().nullable().optional(),
+      });
+      
+      const validatedData = updateSchema.parse(req.body);
+      
+      if (Object.keys(validatedData).length === 0) {
+        return res.status(400).json({ error: "No valid fields to update" });
+      }
+      
+      const updatedUser = await storage.updateUser(id, validatedData);
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      res.json(updatedUser);
+    } catch (error: any) {
+      console.error('Error updating user:', error);
+      res.status(400).json({ 
+        error: "Failed to update user",
+        message: error.message 
+      });
+    }
+  });
+
+  app.delete("/api/users/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteUser(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      res.status(400).json({ 
+        error: "Failed to delete user",
         message: error.message 
       });
     }
@@ -315,9 +362,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { storeId } = req.params;
       const { DataInicial, DataFinal, Pagina, RegistrosPorPagina } = req.query;
+      
+      const today = new Date();
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(today.getDate() - 30);
+      
+      const formatDate = (date: Date) => date.toISOString().split('T')[0];
+      
       const result = await dapicService.getOrcamentos(storeId, {
-        DataInicial: DataInicial as string | undefined,
-        DataFinal: DataFinal as string | undefined,
+        DataInicial: (DataInicial as string) || formatDate(thirtyDaysAgo),
+        DataFinal: (DataFinal as string) || formatDate(today),
         Pagina: Pagina ? parseInt(Pagina as string) : undefined,
         RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
       });
@@ -397,9 +451,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { storeId } = req.params;
       const { DataInicial, DataFinal, Pagina, RegistrosPorPagina } = req.query;
+      
+      const today = new Date();
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(today.getDate() - 90);
+      
+      const formatDate = (date: Date) => date.toISOString().split('T')[0];
+      
       const result = await dapicService.getContasPagar(storeId, {
-        DataInicial: DataInicial as string | undefined,
-        DataFinal: DataFinal as string | undefined,
+        DataInicial: (DataInicial as string) || formatDate(ninetyDaysAgo),
+        DataFinal: (DataFinal as string) || formatDate(today),
         Pagina: Pagina ? parseInt(Pagina as string) : undefined,
         RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
       });

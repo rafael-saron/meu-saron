@@ -18,3 +18,25 @@ export function useCreateUser() {
     },
   });
 }
+
+export function useUpdateUser() {
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<InsertUser> }) => {
+      return await apiRequest("PATCH", `/api/users/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+    },
+  });
+}
+
+export function useDeleteUser() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest("DELETE", `/api/users/${id}`, undefined);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+    },
+  });
+}
