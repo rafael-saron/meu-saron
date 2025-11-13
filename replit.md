@@ -110,19 +110,21 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
 ✅ Tratamento de erros em todas as rotas
 ✅ Axios instalado para chamadas HTTP
 
-### Mudanças Recentes
-- Suporte multi-loja implementado no DapicService
-- Credenciais das 3 lojas configuradas (DAPIC_EMPRESA_SARON1/2/3, DAPIC_TOKEN_INTEGRACAO_SARON1/2/3)
-- Rotas atualizadas para aceitar storeId como parâmetro: `/api/dapic/:storeId/clientes`
-- Hooks do frontend atualizados para passar storeId
-- StoreSelector agora carrega lojas dinâmicamente do backend
-- Método `makeRequestAllStores` para consolidar dados de todas as lojas
+### Mudanças Recentes (13 Nov 2025 17:40)
+- ✅ Dashboard conectado aos dados reais do Dapic com métricas consolidadas
+- ✅ Páginas Clientes, Vendas, Produtos, Contas a Pagar conectadas aos hooks useDapic*
+- ✅ Tratamento de erros consolidados exibido ao usuário
+- ✅ Loading states e skeleton placeholders em todas as páginas
+- ✅ StoreSelector funcional em Dashboard e páginas Dapic
+- ✅ Normalização de dados e proteção contra valores nulos/undefined
+- 🔄 Em progresso: Conectar Chat, Calendário, Avisos e Mensagens Anônimas ao backend
 
 ### Próximos Passos
-- Conectar páginas Dashboard, Clientes, Vendas, Produtos, Contas a Pagar aos hooks do Dapic
-- Implementar visualização de dados consolidados vs. individual
-- Adicionar loading states e error boundaries
-- Testar integração com API Dapic real
+- Conectar Chat ao backend real com WebSocket
+- Conectar Calendário, Avisos e Mensagens Anônimas ao PostgreSQL
+- Implementar sistema de notificações em tempo real
+- Criar módulo de relatórios personalizáveis
+- Implementar sistema de metas e KPIs
 
 ## Como Executar
 1. Variáveis de ambiente já configuradas (DATABASE_URL, DAPIC_EMPRESA, DAPIC_TOKEN_INTEGRACAO, SESSION_SECRET)

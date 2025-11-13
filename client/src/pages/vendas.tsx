@@ -12,13 +12,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const mockSales = [
-  { id: "BS230112165134WR", client: "João da Silva", date: "2024-01-15", status: "Fechado", total: 450.00, items: 3 },
-  { id: "GG220621181318MS", client: "Maria Oliveira", date: "2024-01-14", status: "Aberto", total: 1790.00, items: 8 },
-  { id: "NL210526180143LS", client: "Pedro Santos", date: "2024-01-13", status: "Fechado", total: 320.00, items: 2 },
-  { id: "AB230115120045XY", client: "Ana Costa", date: "2024-01-12", status: "Cancelado", total: 680.00, items: 4 },
-];
+import { StoreSelector } from "@/components/store-selector";
+import { useDapicOrcamentos } from "@/hooks/use-dapic";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+import { parseBrazilianCurrency, formatBrazilianCurrency } from "@/lib/currency";
 
 const statusColors = {
   "Fechado": "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
@@ -28,10 +27,19 @@ const statusColors = {
 
 export default function Vendas() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStore, setSelectedStore] = useState("saron1");
 
-  const filteredSales = mockSales.filter((sale) =>
-    sale.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    sale.client.toLowerCase().includes(searchTerm.toLowerCase())
+  const { data, isLoading, error } = useDapicOrcamentos(selectedStore);
+
+  const isConsolidated = selectedStore === "todas";
+  
+  const salesList = isConsolidated && data?.stores
+    ? Object.values(data.stores).flatMap((storeData: any) => storeData?.Resultado || [])
+    : (data?.Resultado || []);
+
+  const filteredSales = salesList.filter((sale: any) =>
+    (sale.Numero || '').toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (sale.NomeCliente || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -43,11 +51,17 @@ export default function Vendas() {
           </h1>
           <p className="text-muted-foreground mt-1">Acompanhe suas vendas do Dapic</p>
         </div>
-        <Button data-testid="button-new-sale">
-          <ShoppingCart className="h-4 w-4 mr-2" />
-          Nova Venda
-        </Button>
+        <StoreSelector value={selectedStore} onChange={setSelectedStore} />
       </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Erro ao carregar vendas. Por favor, tente novamente mais tarde.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>
@@ -68,38 +82,56 @@ export default function Vendas() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Código</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Items</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredSales.map((sale) => (
-                <TableRow key={sale.id} className="hover-elevate" data-testid={`row-sale-${sale.id}`}>
-                  <TableCell className="font-mono text-sm">{sale.id}</TableCell>
-                  <TableCell className="font-medium">{sale.client}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {new Date(sale.date).toLocaleDateString('pt-BR')}
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={statusColors[sale.status as keyof typeof statusColors]}>
-                      {sale.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">{sale.items}</TableCell>
-                  <TableCell className="text-right font-semibold">
-                    R$ {sale.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </TableCell>
+          {isLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+            </div>
+          ) : filteredSales.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhuma venda encontrada
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Items</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredSales.map((sale: any, index: number) => {
+                  const saleId = sale.Id || sale.Numero || index;
+                  const itemCount = sale.Itens?.length || 0;
+                  const saleStatus = sale.Situacao || (sale.DataFechamento ? "Fechado" : "Aberto");
+                  
+                  return (
+                    <TableRow key={saleId} className="hover-elevate" data-testid={`row-sale-${saleId}`}>
+                      <TableCell className="font-mono text-sm">{sale.Numero || saleId}</TableCell>
+                      <TableCell className="font-medium">{sale.NomeCliente || 'Cliente não informado'}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {sale.DataEmissao ? new Date(sale.DataEmissao).toLocaleDateString('pt-BR') : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={statusColors[saleStatus as keyof typeof statusColors] || "bg-gray-100 text-gray-800"}>
+                          {saleStatus}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">{itemCount}</TableCell>
+                      <TableCell className="text-right font-semibold">
+                        R$ {formatBrazilianCurrency(parseBrazilianCurrency(sale.ValorTotal))}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

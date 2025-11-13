@@ -12,21 +12,28 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const mockProducts = [
-  { id: 1, code: "20230112-01", name: "Camiseta estampada", color: "Branco", size: "P", stock: 45, price: 89.90 },
-  { id: 2, code: "20230112-02", name: "Calça Jeans Slim", color: "Azul", size: "38", stock: 23, price: 189.90 },
-  { id: 3, code: "20230112-03", name: "Vestido Floral", color: "Floral", size: "M", stock: 12, price: 149.90 },
-  { id: 4, code: "20230112-04", name: "Jaqueta de Couro", color: "Preto", size: "G", stock: 8, price: 349.90 },
-  { id: 5, code: "20230112-05", name: "Camisa Social", color: "Branco", size: "M", stock: 31, price: 119.90 },
-];
+import { StoreSelector } from "@/components/store-selector";
+import { useDapicProdutos } from "@/hooks/use-dapic";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+import { parseBrazilianCurrency, formatBrazilianCurrency } from "@/lib/currency";
 
 export default function Produtos() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStore, setSelectedStore] = useState("saron1");
 
-  const filteredProducts = mockProducts.filter((product) =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.code.toLowerCase().includes(searchTerm.toLowerCase())
+  const { data, isLoading, error } = useDapicProdutos(selectedStore);
+
+  const isConsolidated = selectedStore === "todas";
+  
+  const productsList = isConsolidated && data?.stores
+    ? Object.values(data.stores).flatMap((storeData: any) => storeData?.Dados || [])
+    : (data?.Dados || []);
+
+  const filteredProducts = productsList.filter((product: any) =>
+    (product.Descricao || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (product.Codigo || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -38,11 +45,17 @@ export default function Produtos() {
           </h1>
           <p className="text-muted-foreground mt-1">Gerencie o catálogo de produtos do Dapic</p>
         </div>
-        <Button data-testid="button-add-product">
-          <Package className="h-4 w-4 mr-2" />
-          Novo Produto
-        </Button>
+        <StoreSelector value={selectedStore} onChange={setSelectedStore} />
       </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Erro ao carregar produtos. Por favor, tente novamente mais tarde.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>
@@ -63,36 +76,51 @@ export default function Produtos() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Código</TableHead>
-                <TableHead>Produto</TableHead>
-                <TableHead>Cor</TableHead>
-                <TableHead>Tamanho</TableHead>
-                <TableHead className="text-right">Estoque</TableHead>
-                <TableHead className="text-right">Preço</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredProducts.map((product) => (
-                <TableRow key={product.id} className="hover-elevate" data-testid={`row-product-${product.id}`}>
-                  <TableCell className="font-mono text-sm">{product.code}</TableCell>
-                  <TableCell className="font-medium">{product.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{product.color}</TableCell>
-                  <TableCell className="text-muted-foreground">{product.size}</TableCell>
-                  <TableCell className="text-right">
-                    <Badge variant={product.stock < 15 ? "destructive" : "secondary"}>
-                      {product.stock} un.
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-semibold">
-                    R$ {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </TableCell>
+          {isLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhum produto encontrado
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Produto</TableHead>
+                  <TableHead>Referência</TableHead>
+                  <TableHead className="text-right">Estoque</TableHead>
+                  <TableHead className="text-right">Preço</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredProducts.map((product: any, index: number) => {
+                  const productId = product.Id || product.Codigo || index;
+                  const stockQuantity = product.Estoque || product.EstoqueAtual || 0;
+                  
+                  return (
+                    <TableRow key={productId} className="hover-elevate" data-testid={`row-product-${productId}`}>
+                      <TableCell className="font-mono text-sm">{product.Codigo || '-'}</TableCell>
+                      <TableCell className="font-medium">{product.Descricao || 'Produto sem descrição'}</TableCell>
+                      <TableCell className="text-muted-foreground">{product.Referencia || '-'}</TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant={stockQuantity < 15 ? "destructive" : "secondary"}>
+                          {stockQuantity} un.
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        R$ {formatBrazilianCurrency(parseBrazilianCurrency(product.PrecoVenda))}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

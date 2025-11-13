@@ -12,14 +12,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const mockBills = [
-  { id: 1, description: "Fornecedor ABC Tecidos", dueDate: "2024-01-20", amount: 3450.00, status: "Pendente" },
-  { id: 2, description: "Aluguel Loja Centro", dueDate: "2024-01-25", amount: 5500.00, status: "Pendente" },
-  { id: 3, description: "Energia Elétrica", dueDate: "2024-01-18", amount: 890.50, status: "Vencido" },
-  { id: 4, description: "Fornecedor XYZ Aviamentos", dueDate: "2024-01-15", amount: 2100.00, status: "Pago" },
-  { id: 5, description: "Água", dueDate: "2024-01-22", amount: 345.80, status: "Pendente" },
-];
+import { StoreSelector } from "@/components/store-selector";
+import { useDapicContasPagar } from "@/hooks/use-dapic";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+import { parseBrazilianCurrency, formatBrazilianCurrency } from "@/lib/currency";
 
 const statusColors = {
   "Pendente": "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
@@ -29,9 +27,19 @@ const statusColors = {
 
 export default function ContasPagar() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStore, setSelectedStore] = useState("saron1");
 
-  const filteredBills = mockBills.filter((bill) =>
-    bill.description.toLowerCase().includes(searchTerm.toLowerCase())
+  const { data, isLoading, error } = useDapicContasPagar(selectedStore);
+
+  const isConsolidated = selectedStore === "todas";
+  
+  const billsList = isConsolidated && data?.stores
+    ? Object.values(data.stores).flatMap((storeData: any) => storeData?.Resultado || [])
+    : (data?.Resultado || []);
+
+  const filteredBills = billsList.filter((bill: any) =>
+    (bill.Historico || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (bill.Fornecedor || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -43,11 +51,17 @@ export default function ContasPagar() {
           </h1>
           <p className="text-muted-foreground mt-1">Gerencie seus pagamentos do Dapic</p>
         </div>
-        <Button data-testid="button-add-bill">
-          <DollarSign className="h-4 w-4 mr-2" />
-          Nova Conta
-        </Button>
+        <StoreSelector value={selectedStore} onChange={setSelectedStore} />
       </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Erro ao carregar contas a pagar. Por favor, tente novamente mais tarde.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>
@@ -68,34 +82,60 @@ export default function ContasPagar() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Descrição</TableHead>
-                <TableHead>Data de Vencimento</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredBills.map((bill) => (
-                <TableRow key={bill.id} className="hover-elevate" data-testid={`row-bill-${bill.id}`}>
-                  <TableCell className="font-medium">{bill.description}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {new Date(bill.dueDate).toLocaleDateString('pt-BR')}
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={statusColors[bill.status as keyof typeof statusColors]}>
-                      {bill.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-semibold">
-                    R$ {bill.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </TableCell>
+          {isLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+            </div>
+          ) : filteredBills.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhuma conta a pagar encontrada
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Descrição</TableHead>
+                  <TableHead>Fornecedor</TableHead>
+                  <TableHead>Data de Vencimento</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredBills.map((bill: any, index: number) => {
+                  const billId = bill.Id || index;
+                  const dueDate = bill.DataVencimento ? new Date(bill.DataVencimento) : null;
+                  const today = new Date();
+                  const isPaid = !!bill.DataPagamento;
+                  const isOverdue = dueDate && !isPaid && dueDate < today;
+                  
+                  let billStatus = "Pendente";
+                  if (isPaid) billStatus = "Pago";
+                  else if (isOverdue) billStatus = "Vencido";
+                  
+                  return (
+                    <TableRow key={billId} className="hover-elevate" data-testid={`row-bill-${billId}`}>
+                      <TableCell className="font-medium">{bill.Historico || 'Sem descrição'}</TableCell>
+                      <TableCell className="text-muted-foreground">{bill.Fornecedor || '-'}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {dueDate ? dueDate.toLocaleDateString('pt-BR') : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={statusColors[billStatus as keyof typeof statusColors]}>
+                          {billStatus}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        R$ {formatBrazilianCurrency(parseBrazilianCurrency(bill.Valor))}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

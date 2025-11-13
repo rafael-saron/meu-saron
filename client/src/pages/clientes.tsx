@@ -13,20 +13,28 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-
-const mockClients = [
-  { id: 1, name: "João da Silva", email: "joao@email.com", phone: "(11) 98765-4321", purchases: 12, totalSpent: 4850.00, lastPurchase: "2024-01-15" },
-  { id: 2, name: "Maria Oliveira", email: "maria@email.com", phone: "(11) 97654-3210", purchases: 8, totalSpent: 3200.00, lastPurchase: "2024-01-12" },
-  { id: 3, name: "Pedro Santos", email: "pedro@email.com", phone: "(11) 96543-2109", purchases: 15, totalSpent: 6750.00, lastPurchase: "2024-01-18" },
-  { id: 4, name: "Ana Costa", email: "ana@email.com", phone: "(11) 95432-1098", purchases: 5, totalSpent: 2100.00, lastPurchase: "2024-01-10" },
-];
+import { StoreSelector } from "@/components/store-selector";
+import { useDapicClientes } from "@/hooks/use-dapic";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStore, setSelectedStore] = useState("saron1");
 
-  const filteredClients = mockClients.filter((client) =>
-    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const { data, isLoading, error } = useDapicClientes(selectedStore);
+
+  const isConsolidated = selectedStore === "todas";
+  
+  const clientsList = isConsolidated && data?.stores
+    ? Object.values(data.stores).flatMap((storeData: any) => storeData?.Resultado || [])
+    : (data?.Resultado || []);
+
+  const filteredClients = clientsList.filter((client: any) =>
+    (client.Nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (client.Email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (client.NomeFantasia || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -38,11 +46,17 @@ export default function Clientes() {
           </h1>
           <p className="text-muted-foreground mt-1">Gerencie seus clientes do Dapic</p>
         </div>
-        <Button data-testid="button-add-client">
-          <UserPlus className="h-4 w-4 mr-2" />
-          Novo Cliente
-        </Button>
+        <StoreSelector value={selectedStore} onChange={setSelectedStore} />
       </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Erro ao carregar clientes. Por favor, tente novamente mais tarde.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>
@@ -63,46 +77,73 @@ export default function Clientes() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Contato</TableHead>
-                <TableHead className="text-right">Compras</TableHead>
-                <TableHead className="text-right">Total Gasto</TableHead>
-                <TableHead className="text-right">Última Compra</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredClients.map((client) => (
-                <TableRow key={client.id} className="hover-elevate" data-testid={`row-client-${client.id}`}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-9 w-9">
-                        <AvatarFallback className="text-sm">
-                          {client.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium text-foreground">{client.name}</p>
-                        <p className="text-sm text-muted-foreground">{client.email}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{client.phone}</TableCell>
-                  <TableCell className="text-right">
-                    <Badge variant="secondary">{client.purchases} pedidos</Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    R$ {client.totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {new Date(client.lastPurchase).toLocaleDateString('pt-BR')}
-                  </TableCell>
+          {isLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+            </div>
+          ) : filteredClients.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhum cliente encontrado
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Contato</TableHead>
+                  <TableHead>Documento</TableHead>
+                  <TableHead className="text-right">Situação</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredClients.map((client: any, index: number) => {
+                  const clientId = client.Id || client.Codigo || index;
+                  const clientName = client.Nome || client.NomeFantasia || 'Cliente Sem Nome';
+                  const initials = clientName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                  
+                  return (
+                    <TableRow key={clientId} className="hover-elevate" data-testid={`row-client-${clientId}`}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9">
+                            <AvatarFallback className="text-sm">
+                              {initials}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium text-foreground">{clientName}</p>
+                            {client.NomeFantasia && client.Nome !== client.NomeFantasia && (
+                              <p className="text-sm text-muted-foreground">{client.NomeFantasia}</p>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          {client.Email && (
+                            <p className="text-sm text-muted-foreground">{client.Email}</p>
+                          )}
+                          {client.Telefone && (
+                            <p className="text-sm text-muted-foreground">{client.Telefone}</p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {client.CPF || client.CNPJ || '-'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant={client.Ativo ? "default" : "secondary"}>
+                          {client.Ativo ? "Ativo" : "Inativo"}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
