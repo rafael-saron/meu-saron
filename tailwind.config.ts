@@ -83,9 +83,10 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["var(--font-sans)"],
+        sans: ["var(--font-sans)", "Inter", "sans-serif"],
         serif: ["var(--font-serif)"],
         mono: ["var(--font-mono)"],
+        display: ["Poppins", "var(--font-sans)", "sans-serif"],
       },
       keyframes: {
         "accordion-down": {
