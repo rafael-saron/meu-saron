@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Search, Send, Paperclip, MoreVertical } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Search, Send, Paperclip, MoreVertical, Plus } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/lib/user-context";
 import { useUsers } from "@/hooks/use-users";
-import { useChatMessages, useSendMessage } from "@/hooks/use-chat";
-import { useWebSocket } from "@/hooks/use-websocket";
+import { useChatMessages, useSendMessage, useMarkMessagesAsRead } from "@/hooks/use-chat";
 import { queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -20,29 +19,18 @@ export default function Chat() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: messages, isLoading: messagesLoading } = useChatMessages(
+  const { data: messages, isLoading: messagesLoading, dataUpdatedAt } = useChatMessages(
     currentUser?.id || "",
     selectedUserId || ""
   );
   const sendMessageMutation = useSendMessage();
-
-  useWebSocket({
-    userId: currentUser?.id,
-    onMessage: (data) => {
-      if (data.type === "chat" && data.data) {
-        queryClient.invalidateQueries({ 
-          queryKey: ["/api/chat/messages", data.data.senderId, data.data.receiverId] 
-        });
-        queryClient.invalidateQueries({ 
-          queryKey: ["/api/chat/messages", data.data.receiverId, data.data.senderId] 
-        });
-      }
-    },
-  });
+  const markAsReadMutation = useMarkMessagesAsRead();
 
   const otherUsers = users?.filter((u) => u.id !== currentUser?.id) || [];
   const selectedUser = otherUsers.find((u) => u.id === selectedUserId);
+  const lastMarkedKeyRef = useRef<string>("");
 
   useEffect(() => {
     if (!selectedUserId && otherUsers.length > 0) {
@@ -50,8 +38,36 @@ export default function Chat() {
     }
   }, [otherUsers, selectedUserId]);
 
+  // Mark messages as read when conversation is viewed or new messages arrive
+  useEffect(() => {
+    if (!messagesLoading && messages && selectedUserId && currentUser?.id) {
+      const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : "empty";
+      const conversationKey = `${selectedUserId}-${lastMessageId}`;
+      
+      if (conversationKey !== lastMarkedKeyRef.current) {
+        const timer = setTimeout(() => {
+          if (!markAsReadMutation.isPending) {
+            markAsReadMutation.mutate(
+              {
+                senderId: selectedUserId,
+                receiverId: currentUser.id,
+              },
+              {
+                onSuccess: () => {
+                  lastMarkedKeyRef.current = conversationKey;
+                },
+              }
+            );
+          }
+        }, 100);
+        
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [selectedUserId, currentUser?.id, messages, messagesLoading]);
+
   const filteredUsers = otherUsers.filter((u) =>
-    u.name.toLowerCase().includes(searchTerm.toLowerCase())
+    u.fullName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleSendMessage = async () => {
@@ -60,7 +76,7 @@ export default function Chat() {
     await sendMessageMutation.mutateAsync({
       senderId: currentUser.id,
       receiverId: selectedUserId,
-      message: messageInput,
+      content: messageInput,
     });
 
     setMessageInput("");
@@ -73,6 +89,12 @@ export default function Chat() {
       .join("")
       .toUpperCase()
       .slice(0, 2);
+  };
+
+  const handleNewConversation = () => {
+    setSearchTerm("");
+    setSelectedUserId(null);
+    searchInputRef.current?.focus();
   };
 
   if (usersLoading) {
@@ -103,10 +125,24 @@ export default function Chat() {
 
       <div className="grid lg:grid-cols-[320px_1fr] gap-4 h-[calc(100vh-280px)]">
         <Card className="flex flex-col">
-          <CardHeader className="border-b border-border pb-4">
+          <CardHeader className="border-b border-border pb-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="font-medium text-foreground">Conversas</h3>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleNewConversation}
+                data-testid="button-new-conversation"
+                className="h-8"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Nova
+              </Button>
+            </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
+                ref={searchInputRef}
                 placeholder="Buscar conversas..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -129,15 +165,15 @@ export default function Chat() {
                 >
                   <Avatar className="h-10 w-10">
                     <AvatarFallback className="text-sm font-medium">
-                      {getInitials(user.name)}
+                      {getInitials(user.fullName)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <p className="font-medium text-foreground truncate">{user.name}</p>
+                      <p className="font-medium text-foreground truncate">{user.fullName}</p>
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm text-muted-foreground truncate">{user.role}</p>
+                      <p className="text-sm text-muted-foreground truncate capitalize">{user.role}</p>
                     </div>
                   </div>
                 </button>
@@ -154,11 +190,11 @@ export default function Chat() {
                   <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10">
                       <AvatarFallback className="text-sm font-medium">
-                        {getInitials(selectedUser.name)}
+                        {getInitials(selectedUser.fullName)}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium text-foreground">{selectedUser.name}</p>
+                      <p className="font-medium text-foreground">{selectedUser.fullName}</p>
                       <p className="text-xs text-muted-foreground capitalize">{selectedUser.role}</p>
                     </div>
                   </div>
@@ -199,7 +235,7 @@ export default function Chat() {
                                   : "bg-muted text-foreground"
                               )}
                             >
-                              <p className="text-sm">{message.message}</p>
+                              <p className="text-sm">{message.content}</p>
                               <p
                                 className={cn(
                                   "text-xs mt-1",

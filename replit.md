@@ -110,7 +110,7 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
 ✅ Tratamento de erros em todas as rotas
 ✅ Axios instalado para chamadas HTTP
 
-### Mudanças Recentes (13 Nov 2025 18:00)
+### Mudanças Recentes (13 Nov 2025 21:00)
 - ✅ **Correções Dapic**: Valores default para DataInicial/DataFinal (últimos 30 dias para orçamentos, 90 para contas a pagar)
 - ✅ **Sistema de Gestão de Usuários Completo**:
   - Página /usuarios com CRUD completo (criar, editar, deletar, listar)
@@ -121,6 +121,16 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
   - Usuário admin criado automaticamente (username: admin, password: admin123) - **IMPORTANTE: trocar senha após primeiro login**
   - Menu "Usuários" visível apenas para administradores
   - Soft delete (isActive=false) em vez de exclusão física
+- ✅ **Contador de Mensagens Não Lidas no Chat**:
+  - Badge no sidebar exibindo número de mensagens não lidas
+  - Backend endpoint GET /api/chat/unread-count/:userId
+  - Frontend hook useUnreadCount com polling de 5 segundos (fallback)
+  - **WebSocket global** no App.tsx para atualizações em tempo real em todas as rotas
+  - **Mutation explícita** useMarkMessagesAsRead para marcar mensagens como lidas
+  - Invalidação imediata do contador quando mensagens são lidas ou enviadas
+  - Tracking por ID da última mensagem para detecção precisa de mudanças
+  - Suporte multi-tab (invalidação para sender e receiver)
+- ✅ **Correções de Tipo**: fullName (não name), content (não message)
 - ✅ **Segurança Melhorada**:
   - Validação de campos permitidos em PATCH /api/users/:id
   - Hash automático de senhas em createUser e updateUser

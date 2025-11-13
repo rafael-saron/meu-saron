@@ -9,6 +9,19 @@ export function useChatMessages(userId1: string, userId2: string) {
   });
 }
 
+export function useMarkMessagesAsRead() {
+  return useMutation({
+    mutationFn: async ({ senderId, receiverId }: { senderId: string; receiverId: string }) => {
+      return await apiRequest("POST", "/api/chat/mark-as-read", { senderId, receiverId });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["/api/chat/unread-count", variables.receiverId],
+      });
+    },
+  });
+}
+
 export function useSendMessage() {
   return useMutation({
     mutationFn: async (data: InsertChatMessage) => {
@@ -20,6 +33,12 @@ export function useSendMessage() {
       });
       queryClient.invalidateQueries({
         queryKey: ["/api/chat/messages", variables.receiverId, variables.senderId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/chat/unread-count", variables.receiverId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/chat/unread-count", variables.senderId],
       });
     },
   });

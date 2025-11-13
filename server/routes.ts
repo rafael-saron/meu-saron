@@ -139,12 +139,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId1, userId2 } = req.params;
       const messages = await storage.getChatMessages(userId1, userId2);
-      
-      await storage.markMessagesAsRead(userId2, userId1);
-      
       res.json(messages);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch messages" });
+    }
+  });
+
+  app.get("/api/chat/unread-count/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const count = await storage.getUnreadCount(userId);
+      res.json({ count });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch unread count" });
+    }
+  });
+
+  app.post("/api/chat/mark-as-read", async (req, res) => {
+    try {
+      const { senderId, receiverId } = req.body;
+      if (!senderId || !receiverId) {
+        return res.status(400).json({ error: "senderId and receiverId are required" });
+      }
+      await storage.markMessagesAsRead(senderId, receiverId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to mark messages as read" });
     }
   });
 
@@ -321,11 +341,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/dapic/:storeId/clientes", async (req, res) => {
     try {
       const { storeId } = req.params;
-      const { Pagina, RegistrosPorPagina } = req.query;
+      const { DataInicial, DataFinal, Pagina, RegistrosPorPagina } = req.query;
+      
+      const today = new Date();
+      const oneYearAgo = new Date();
+      oneYearAgo.setDate(today.getDate() - 365);
+      
+      const formatDate = (date: Date) => date.toISOString().split('T')[0];
+      
       const result = await dapicService.getClientes(storeId, {
+        DataInicial: (DataInicial as string) || formatDate(oneYearAgo),
+        DataFinal: (DataFinal as string) || formatDate(today),
         Pagina: Pagina ? parseInt(Pagina as string) : undefined,
         RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
-      });
+      }) as any;
       
       if (storeId === 'todas') {
         res.json({
@@ -374,7 +403,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         DataFinal: (DataFinal as string) || formatDate(today),
         Pagina: Pagina ? parseInt(Pagina as string) : undefined,
         RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
-      });
+      }) as any;
       
       if (storeId === 'todas') {
         res.json({
@@ -410,11 +439,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/dapic/:storeId/produtos", async (req, res) => {
     try {
       const { storeId } = req.params;
-      const { Pagina, RegistrosPorPagina } = req.query;
+      const { DataInicial, DataFinal, Pagina, RegistrosPorPagina } = req.query;
+      
+      const today = new Date();
+      const oneYearAgo = new Date();
+      oneYearAgo.setDate(today.getDate() - 365);
+      
+      const formatDate = (date: Date) => date.toISOString().split('T')[0];
+      
       const result = await dapicService.getProdutos(storeId, {
+        DataInicial: (DataInicial as string) || formatDate(oneYearAgo),
+        DataFinal: (DataFinal as string) || formatDate(today),
         Pagina: Pagina ? parseInt(Pagina as string) : undefined,
         RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
-      });
+      }) as any;
       
       if (storeId === 'todas') {
         res.json({
@@ -463,7 +501,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         DataFinal: (DataFinal as string) || formatDate(today),
         Pagina: Pagina ? parseInt(Pagina as string) : undefined,
         RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
-      });
+      }) as any;
       
       if (storeId === 'todas') {
         res.json({

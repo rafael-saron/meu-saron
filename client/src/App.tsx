@@ -9,7 +9,8 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { StoreSelector } from "@/components/store-selector";
-import { UserProvider } from "@/lib/user-context";
+import { UserProvider, useUser } from "@/lib/user-context";
+import { useWebSocket } from "@/hooks/use-websocket";
 import Dashboard from "@/pages/dashboard";
 import Clientes from "@/pages/clientes";
 import Vendas from "@/pages/vendas";
@@ -40,6 +41,32 @@ function Router() {
   );
 }
 
+function GlobalWebSocketHandler() {
+  const { user } = useUser();
+  
+  useWebSocket({
+    userId: user?.id,
+    onMessage: (data) => {
+      if (data.type === "chat" && data.data) {
+        queryClient.invalidateQueries({ 
+          queryKey: ["/api/chat/messages", data.data.senderId, data.data.receiverId] 
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: ["/api/chat/messages", data.data.receiverId, data.data.senderId] 
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: ["/api/chat/unread-count", data.data.senderId] 
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: ["/api/chat/unread-count", data.data.receiverId] 
+        });
+      }
+    },
+  });
+
+  return null;
+}
+
 function App() {
   const [selectedStore, setSelectedStore] = useState("all");
 
@@ -51,6 +78,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <UserProvider>
+        <GlobalWebSocketHandler />
         <ThemeProvider defaultTheme="light">
           <TooltipProvider>
             <SidebarProvider style={sidebarStyle as React.CSSProperties}>

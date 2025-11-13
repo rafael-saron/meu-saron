@@ -14,7 +14,9 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useUser } from "@/lib/user-context";
+import { useUnreadCount } from "@/hooks/use-unread-count";
 import logoUrl from "@assets/Logo Saron_1763050286995.png";
 
 const mainMenuItems = [
@@ -39,6 +41,7 @@ const adminItems = [
 export function AppSidebar() {
   const [location] = useLocation();
   const { user } = useUser();
+  const { data: unreadData } = useUnreadCount(user?.id);
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -96,6 +99,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {communicationItems.map((item) => {
                 const isActive = location === item.url;
+                const showBadge = item.url === "/chat" && unreadData && unreadData.count > 0;
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
@@ -107,6 +111,15 @@ export function AppSidebar() {
                       <Link href={item.url}>
                         <item.icon className="h-4 w-4" />
                         <span>{item.title}</span>
+                        {showBadge && (
+                          <Badge 
+                            variant="default" 
+                            className="ml-auto h-5 min-w-[1.25rem] px-1 flex items-center justify-center text-xs font-medium"
+                            data-testid="badge-unread-count"
+                          >
+                            {unreadData.count}
+                          </Badge>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

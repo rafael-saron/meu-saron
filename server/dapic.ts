@@ -123,7 +123,12 @@ class DapicService {
     return { data, errors };
   }
 
-  async getClientes(storeId: string, params?: { Pagina?: number; RegistrosPorPagina?: number }) {
+  async getClientes(storeId: string, params?: {
+    DataInicial?: string;
+    DataFinal?: string;
+    Pagina?: number;
+    RegistrosPorPagina?: number;
+  }) {
     if (storeId === 'todas') {
       return this.makeRequestAllStores('/v1/clientes', params);
     }
@@ -150,7 +155,12 @@ class DapicService {
     return this.makeRequest(storeId, `/v1/orcamentos/${id}`);
   }
 
-  async getProdutos(storeId: string, params?: { Pagina?: number; RegistrosPorPagina?: number }) {
+  async getProdutos(storeId: string, params?: {
+    DataInicial?: string;
+    DataFinal?: string;
+    Pagina?: number;
+    RegistrosPorPagina?: number;
+  }) {
     if (storeId === 'todas') {
       return this.makeRequestAllStores('/v1/produtos', params);
     }
