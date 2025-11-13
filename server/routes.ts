@@ -258,14 +258,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/dapic/clientes", async (req, res) => {
+  app.get("/api/dapic/stores", async (req, res) => {
     try {
+      const stores = dapicService.getAvailableStores();
+      res.json(stores);
+    } catch (error: any) {
+      console.error('Error fetching available stores:', error);
+      res.status(500).json({ 
+        error: "Failed to fetch available stores",
+        message: error.message 
+      });
+    }
+  });
+
+  app.get("/api/dapic/:storeId/clientes", async (req, res) => {
+    try {
+      const { storeId } = req.params;
       const { Pagina, RegistrosPorPagina } = req.query;
-      const clientes = await dapicService.getClientes({
+      const result = await dapicService.getClientes(storeId, {
         Pagina: Pagina ? parseInt(Pagina as string) : undefined,
         RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
       });
-      res.json(clientes);
+      
+      if (storeId === 'todas') {
+        res.json({
+          stores: result.data,
+          errors: result.errors,
+        });
+      } else {
+        res.json(result);
+      }
     } catch (error: any) {
       console.error('Error fetching clients from Dapic:', error);
       res.status(500).json({ 
@@ -275,76 +297,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/dapic/clientes/:id", async (req, res) => {
+  app.get("/api/dapic/:storeId/clientes/:id", async (req, res) => {
     try {
-      const { id } = req.params;
-      const cliente = await dapicService.getCliente(parseInt(id));
+      const { storeId, id } = req.params;
+      const cliente = await dapicService.getCliente(storeId, parseInt(id));
       res.json(cliente);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch client from Dapic" });
+    } catch (error: any) {
+      console.error('Error fetching client from Dapic:', error);
+      res.status(500).json({ 
+        error: "Failed to fetch client from Dapic",
+        message: error.message 
+      });
     }
   });
 
-  app.get("/api/dapic/orcamentos", async (req, res) => {
+  app.get("/api/dapic/:storeId/orcamentos", async (req, res) => {
     try {
+      const { storeId } = req.params;
       const { DataInicial, DataFinal, Pagina, RegistrosPorPagina } = req.query;
-      const orcamentos = await dapicService.getOrcamentos({
+      const result = await dapicService.getOrcamentos(storeId, {
         DataInicial: DataInicial as string | undefined,
         DataFinal: DataFinal as string | undefined,
         Pagina: Pagina ? parseInt(Pagina as string) : undefined,
         RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
       });
-      res.json(orcamentos);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch orders from Dapic" });
+      
+      if (storeId === 'todas') {
+        res.json({
+          stores: result.data,
+          errors: result.errors,
+        });
+      } else {
+        res.json(result);
+      }
+    } catch (error: any) {
+      console.error('Error fetching orders from Dapic:', error);
+      res.status(500).json({ 
+        error: "Failed to fetch orders from Dapic",
+        message: error.message 
+      });
     }
   });
 
-  app.get("/api/dapic/orcamentos/:id", async (req, res) => {
+  app.get("/api/dapic/:storeId/orcamentos/:id", async (req, res) => {
     try {
-      const { id } = req.params;
-      const orcamento = await dapicService.getOrcamento(parseInt(id));
+      const { storeId, id } = req.params;
+      const orcamento = await dapicService.getOrcamento(storeId, parseInt(id));
       res.json(orcamento);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch order from Dapic" });
+    } catch (error: any) {
+      console.error('Error fetching order from Dapic:', error);
+      res.status(500).json({ 
+        error: "Failed to fetch order from Dapic",
+        message: error.message 
+      });
     }
   });
 
-  app.get("/api/dapic/produtos", async (req, res) => {
+  app.get("/api/dapic/:storeId/produtos", async (req, res) => {
     try {
+      const { storeId } = req.params;
       const { Pagina, RegistrosPorPagina } = req.query;
-      const produtos = await dapicService.getProdutos({
+      const result = await dapicService.getProdutos(storeId, {
         Pagina: Pagina ? parseInt(Pagina as string) : undefined,
         RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
       });
-      res.json(produtos);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch products from Dapic" });
+      
+      if (storeId === 'todas') {
+        res.json({
+          stores: result.data,
+          errors: result.errors,
+        });
+      } else {
+        res.json(result);
+      }
+    } catch (error: any) {
+      console.error('Error fetching products from Dapic:', error);
+      res.status(500).json({ 
+        error: "Failed to fetch products from Dapic",
+        message: error.message 
+      });
     }
   });
 
-  app.get("/api/dapic/produtos/:id", async (req, res) => {
+  app.get("/api/dapic/:storeId/produtos/:id", async (req, res) => {
     try {
-      const { id } = req.params;
-      const produto = await dapicService.getProduto(parseInt(id));
+      const { storeId, id } = req.params;
+      const produto = await dapicService.getProduto(storeId, parseInt(id));
       res.json(produto);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch product from Dapic" });
+    } catch (error: any) {
+      console.error('Error fetching product from Dapic:', error);
+      res.status(500).json({ 
+        error: "Failed to fetch product from Dapic",
+        message: error.message 
+      });
     }
   });
 
-  app.get("/api/dapic/contas-pagar", async (req, res) => {
+  app.get("/api/dapic/:storeId/contas-pagar", async (req, res) => {
     try {
+      const { storeId } = req.params;
       const { DataInicial, DataFinal, Pagina, RegistrosPorPagina } = req.query;
-      const contas = await dapicService.getContasPagar({
+      const result = await dapicService.getContasPagar(storeId, {
         DataInicial: DataInicial as string | undefined,
         DataFinal: DataFinal as string | undefined,
         Pagina: Pagina ? parseInt(Pagina as string) : undefined,
         RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
       });
-      res.json(contas);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch bills from Dapic" });
+      
+      if (storeId === 'todas') {
+        res.json({
+          stores: result.data,
+          errors: result.errors,
+        });
+      } else {
+        res.json(result);
+      }
+    } catch (error: any) {
+      console.error('Error fetching bills from Dapic:', error);
+      res.status(500).json({ 
+        error: "Failed to fetch bills from Dapic",
+        message: error.message 
+      });
     }
   });
 

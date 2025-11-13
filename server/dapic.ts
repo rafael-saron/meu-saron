@@ -8,48 +8,82 @@ interface DapicAuthResponse {
   token_type: string;
 }
 
+interface StoreCredentials {
+  empresa: string;
+  token: string;
+}
+
+const STORES: Record<string, StoreCredentials> = {
+  'saron1': {
+    empresa: process.env.DAPIC_EMPRESA || '',
+    token: process.env.DAPIC_TOKEN_INTEGRACAO || '',
+  },
+  'saron2': {
+    empresa: process.env.DAPIC_EMPRESA_SARON2 || '',
+    token: process.env.DAPIC_TOKEN_INTEGRACAO_SARON2 || '',
+  },
+  'saron3': {
+    empresa: process.env.DAPIC_EMPRESA_SARON3 || '',
+    token: process.env.DAPIC_TOKEN_INTEGRACAO_SARON3 || '',
+  },
+};
+
 class DapicService {
-  private accessToken: string | null = null;
-  private tokenExpiresAt: number = 0;
+  private accessTokens: Map<string, string> = new Map();
+  private tokenExpirations: Map<string, number> = new Map();
 
   constructor() {
-    if (!process.env.DAPIC_EMPRESA || !process.env.DAPIC_TOKEN_INTEGRACAO) {
-      console.warn('Dapic credentials not configured. API calls will fail.');
+    const missingStores: string[] = [];
+    Object.entries(STORES).forEach(([storeId, creds]) => {
+      if (!creds.empresa || !creds.token) {
+        missingStores.push(storeId);
+      }
+    });
+    
+    if (missingStores.length > 0) {
+      console.warn(`Dapic credentials not configured for stores: ${missingStores.join(', ')}`);
     }
   }
 
-  async getAccessToken(): Promise<string> {
-    if (!process.env.DAPIC_EMPRESA || !process.env.DAPIC_TOKEN_INTEGRACAO) {
-      throw new Error('Dapic credentials not configured');
+  async getAccessToken(storeId: string): Promise<string> {
+    const credentials = STORES[storeId];
+    if (!credentials || !credentials.empresa || !credentials.token) {
+      throw new Error(`Dapic credentials not configured for store: ${storeId}`);
     }
+
     const now = Date.now();
+    const cachedToken = this.accessTokens.get(storeId);
+    const expiration = this.tokenExpirations.get(storeId) || 0;
     
-    if (this.accessToken && this.tokenExpiresAt > now) {
-      return this.accessToken;
+    if (cachedToken && expiration > now) {
+      return cachedToken;
     }
 
     try {
       const response = await axios.post<DapicAuthResponse>(
         `${DAPIC_API_BASE_URL}/autenticacao/v1/login`,
         {
-          Empresa: process.env.DAPIC_EMPRESA,
-          TokenIntegracao: process.env.DAPIC_TOKEN_INTEGRACAO,
+          Empresa: credentials.empresa,
+          TokenIntegracao: credentials.token,
         }
       );
 
-      this.accessToken = response.data.access_token;
+      const accessToken = response.data.access_token;
       const expiresInSeconds = parseInt(response.data.expires_in);
-      this.tokenExpiresAt = now + (expiresInSeconds - 300) * 1000;
+      const tokenExpiresAt = now + (expiresInSeconds - 300) * 1000;
 
-      return this.accessToken;
+      this.accessTokens.set(storeId, accessToken);
+      this.tokenExpirations.set(storeId, tokenExpiresAt);
+
+      return accessToken;
     } catch (error) {
-      console.error('Error authenticating with Dapic:', error);
-      throw new Error('Failed to authenticate with Dapic API');
+      console.error(`Error authenticating with Dapic for store ${storeId}:`, error);
+      throw new Error(`Failed to authenticate with Dapic API for store ${storeId}`);
     }
   }
 
-  async makeRequest<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
-    const token = await this.getAccessToken();
+  async makeRequest<T>(storeId: string, endpoint: string, params?: Record<string, any>): Promise<T> {
+    const token = await this.getAccessToken(storeId);
     
     try {
       const response = await axios.get<T>(`${DAPIC_API_BASE_URL}${endpoint}`, {
@@ -61,47 +95,86 @@ class DapicService {
 
       return response.data;
     } catch (error) {
-      console.error(`Error calling Dapic endpoint ${endpoint}:`, error);
+      console.error(`Error calling Dapic endpoint ${endpoint} for store ${storeId}:`, error);
       throw error;
     }
   }
 
-  async getClientes(params?: { Pagina?: number; RegistrosPorPagina?: number }) {
-    return this.makeRequest('/v1/clientes', params);
+  async makeRequestAllStores<T>(endpoint: string, params?: Record<string, any>): Promise<{
+    data: Record<string, T>;
+    errors: Record<string, string>;
+  }> {
+    const data: Record<string, T> = {};
+    const errors: Record<string, string> = {};
+    const storeIds = Object.keys(STORES).filter(id => STORES[id].empresa && STORES[id].token);
+    
+    await Promise.all(
+      storeIds.map(async (storeId) => {
+        try {
+          data[storeId] = await this.makeRequest<T>(storeId, endpoint, params);
+        } catch (error: any) {
+          const errorMsg = error.message || 'Unknown error';
+          console.error(`Error fetching data from store ${storeId}:`, errorMsg);
+          errors[storeId] = errorMsg;
+        }
+      })
+    );
+    
+    return { data, errors };
   }
 
-  async getCliente(id: number) {
-    return this.makeRequest(`/v1/clientes/${id}`);
+  async getClientes(storeId: string, params?: { Pagina?: number; RegistrosPorPagina?: number }) {
+    if (storeId === 'todas') {
+      return this.makeRequestAllStores('/v1/clientes', params);
+    }
+    return this.makeRequest(storeId, '/v1/clientes', params);
   }
 
-  async getOrcamentos(params?: {
+  async getCliente(storeId: string, id: number) {
+    return this.makeRequest(storeId, `/v1/clientes/${id}`);
+  }
+
+  async getOrcamentos(storeId: string, params?: {
     DataInicial?: string;
     DataFinal?: string;
     Pagina?: number;
     RegistrosPorPagina?: number;
   }) {
-    return this.makeRequest('/v1/orcamentos', params);
+    if (storeId === 'todas') {
+      return this.makeRequestAllStores('/v1/orcamentos', params);
+    }
+    return this.makeRequest(storeId, '/v1/orcamentos', params);
   }
 
-  async getOrcamento(id: number) {
-    return this.makeRequest(`/v1/orcamentos/${id}`);
+  async getOrcamento(storeId: string, id: number) {
+    return this.makeRequest(storeId, `/v1/orcamentos/${id}`);
   }
 
-  async getProdutos(params?: { Pagina?: number; RegistrosPorPagina?: number }) {
-    return this.makeRequest('/v1/produtos', params);
+  async getProdutos(storeId: string, params?: { Pagina?: number; RegistrosPorPagina?: number }) {
+    if (storeId === 'todas') {
+      return this.makeRequestAllStores('/v1/produtos', params);
+    }
+    return this.makeRequest(storeId, '/v1/produtos', params);
   }
 
-  async getProduto(id: number) {
-    return this.makeRequest(`/v1/produtos/${id}`);
+  async getProduto(storeId: string, id: number) {
+    return this.makeRequest(storeId, `/v1/produtos/${id}`);
   }
 
-  async getContasPagar(params?: {
+  async getContasPagar(storeId: string, params?: {
     DataInicial?: string;
     DataFinal?: string;
     Pagina?: number;
     RegistrosPorPagina?: number;
   }) {
-    return this.makeRequest('/v1/contas-pagar', params);
+    if (storeId === 'todas') {
+      return this.makeRequestAllStores('/v1/contas-pagar', params);
+    }
+    return this.makeRequest(storeId, '/v1/contas-pagar', params);
+  }
+
+  getAvailableStores(): string[] {
+    return Object.keys(STORES).filter(id => STORES[id].empresa && STORES[id].token);
   }
 }
 

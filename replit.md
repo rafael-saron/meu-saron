@@ -92,28 +92,37 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
 
 ## Estado Atual (13 Nov 2025)
 
-### Completado
-✅ Schema do banco de dados PostgreSQL
-✅ Backend completo com integração Dapic
+### Completado ✅
+✅ Schema do banco de dados PostgreSQL com Drizzle ORM
+✅ Backend completo com integração Dapic multi-loja (Saron 1, 2, 3)
 ✅ WebSocket server para chat em tempo real
-✅ Storage layer com Drizzle ORM
-✅ Todas as páginas do frontend implementadas
-✅ Sistema de design com cores Saron
+✅ Storage layer com todas as operações CRUD
+✅ Todas as 9 páginas do frontend implementadas
+✅ Sistema de design com cores Saron (roxo/magenta)
 ✅ Hooks React Query para todos os endpoints
-✅ Contexto de usuário global
+✅ Contexto de usuário global com roles
 ✅ Dark mode completo
-✅ Sidebar de navegação
-✅ Seletor multi-loja
+✅ Sidebar de navegação com logo Saron
+✅ Seletor multi-loja dinâmico (busca lojas disponíveis do backend)
+✅ Integração com as 3 lojas Saron via API Dapic
+✅ Autenticação JWT separada por loja com cache de tokens
+✅ Endpoint consolidado "Todas as Lojas" para visão geral
+✅ Tratamento de erros em todas as rotas
+✅ Axios instalado para chamadas HTTP
 
-### Em Progresso
-🔄 Integração final frontend-backend
-🔄 Testes e validações
+### Mudanças Recentes
+- Suporte multi-loja implementado no DapicService
+- Credenciais das 3 lojas configuradas (DAPIC_EMPRESA_SARON1/2/3, DAPIC_TOKEN_INTEGRACAO_SARON1/2/3)
+- Rotas atualizadas para aceitar storeId como parâmetro: `/api/dapic/:storeId/clientes`
+- Hooks do frontend atualizados para passar storeId
+- StoreSelector agora carrega lojas dinâmicamente do backend
+- Método `makeRequestAllStores` para consolidar dados de todas as lojas
 
 ### Próximos Passos
-- Conectar todas as páginas aos hooks do backend
-- Implementar tratamento de erros e loading states
-- Testar fluxos críticos end-to-end
-- Polish de UI/UX
+- Conectar páginas Dashboard, Clientes, Vendas, Produtos, Contas a Pagar aos hooks do Dapic
+- Implementar visualização de dados consolidados vs. individual
+- Adicionar loading states e error boundaries
+- Testar integração com API Dapic real
 
 ## Como Executar
 1. Variáveis de ambiente já configuradas (DATABASE_URL, DAPIC_EMPRESA, DAPIC_TOKEN_INTEGRACAO, SESSION_SECRET)

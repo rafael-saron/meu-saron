@@ -1,29 +1,41 @@
 import { useQuery } from "@tanstack/react-query";
 
-export function useDapicClientes(params?: { Pagina?: number; RegistrosPorPagina?: number }) {
-  return useQuery({
-    queryKey: ["/api/dapic/clientes", params],
+export function useDapicStores() {
+  return useQuery<string[]>({
+    queryKey: ["/api/dapic/stores"],
     queryFn: async () => {
-      const queryParams = new URLSearchParams();
-      if (params?.Pagina) queryParams.append("Pagina", params.Pagina.toString());
-      if (params?.RegistrosPorPagina) queryParams.append("RegistrosPorPagina", params.RegistrosPorPagina.toString());
-      
-      const url = `/api/dapic/clientes${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Failed to fetch clients from Dapic");
+      const response = await fetch("/api/dapic/stores");
+      if (!response.ok) throw new Error("Failed to fetch stores");
       return response.json();
     },
   });
 }
 
-export function useDapicOrcamentos(params?: { 
+export function useDapicClientes(storeId: string, params?: { Pagina?: number; RegistrosPorPagina?: number }) {
+  return useQuery({
+    queryKey: ["/api/dapic/clientes", storeId, params],
+    queryFn: async () => {
+      const queryParams = new URLSearchParams();
+      if (params?.Pagina) queryParams.append("Pagina", params.Pagina.toString());
+      if (params?.RegistrosPorPagina) queryParams.append("RegistrosPorPagina", params.RegistrosPorPagina.toString());
+      
+      const url = `/api/dapic/${storeId}/clientes${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to fetch clients from Dapic");
+      return response.json();
+    },
+    enabled: !!storeId,
+  });
+}
+
+export function useDapicOrcamentos(storeId: string, params?: { 
   DataInicial?: string; 
   DataFinal?: string;
   Pagina?: number;
   RegistrosPorPagina?: number;
 }) {
   return useQuery({
-    queryKey: ["/api/dapic/orcamentos", params],
+    queryKey: ["/api/dapic/orcamentos", storeId, params],
     queryFn: async () => {
       const queryParams = new URLSearchParams();
       if (params?.DataInicial) queryParams.append("DataInicial", params.DataInicial);
@@ -31,38 +43,40 @@ export function useDapicOrcamentos(params?: {
       if (params?.Pagina) queryParams.append("Pagina", params.Pagina.toString());
       if (params?.RegistrosPorPagina) queryParams.append("RegistrosPorPagina", params.RegistrosPorPagina.toString());
       
-      const url = `/api/dapic/orcamentos${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const url = `/api/dapic/${storeId}/orcamentos${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch orders from Dapic");
       return response.json();
     },
+    enabled: !!storeId,
   });
 }
 
-export function useDapicProdutos(params?: { Pagina?: number; RegistrosPorPagina?: number }) {
+export function useDapicProdutos(storeId: string, params?: { Pagina?: number; RegistrosPorPagina?: number }) {
   return useQuery({
-    queryKey: ["/api/dapic/produtos", params],
+    queryKey: ["/api/dapic/produtos", storeId, params],
     queryFn: async () => {
       const queryParams = new URLSearchParams();
       if (params?.Pagina) queryParams.append("Pagina", params.Pagina.toString());
       if (params?.RegistrosPorPagina) queryParams.append("RegistrosPorPagina", params.RegistrosPorPagina.toString());
       
-      const url = `/api/dapic/produtos${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const url = `/api/dapic/${storeId}/produtos${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch products from Dapic");
       return response.json();
     },
+    enabled: !!storeId,
   });
 }
 
-export function useDapicContasPagar(params?: {
+export function useDapicContasPagar(storeId: string, params?: {
   DataInicial?: string;
   DataFinal?: string;
   Pagina?: number;
   RegistrosPorPagina?: number;
 }) {
   return useQuery({
-    queryKey: ["/api/dapic/contas-pagar", params],
+    queryKey: ["/api/dapic/contas-pagar", storeId, params],
     queryFn: async () => {
       const queryParams = new URLSearchParams();
       if (params?.DataInicial) queryParams.append("DataInicial", params.DataInicial);
@@ -70,10 +84,11 @@ export function useDapicContasPagar(params?: {
       if (params?.Pagina) queryParams.append("Pagina", params.Pagina.toString());
       if (params?.RegistrosPorPagina) queryParams.append("RegistrosPorPagina", params.RegistrosPorPagina.toString());
       
-      const url = `/api/dapic/contas-pagar${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const url = `/api/dapic/${storeId}/contas-pagar${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch bills from Dapic");
       return response.json();
     },
+    enabled: !!storeId,
   });
 }
