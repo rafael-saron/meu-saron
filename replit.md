@@ -73,10 +73,26 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
 - **Endpoints Integrados**:
   - `/autenticacao/v1/login`: Autenticação
   - `/v1/clientes`: Lista e detalhes de clientes
-  - `/v1/orcamentos`: Lista e detalhes de orçamentos/vendas
+  - `/v1/orcamentos`: Lista e detalhes de orçamentos (⚠️ **LIMITAÇÃO**: retorna apenas cotações, NÃO vendas finalizadas do PDV)
   - `/v1/produtos`: Lista e detalhes de produtos
-  - `/v1/contas-pagar`: Contas a pagar
+  - `/v1/contas-pagar`: ❌ Endpoint não existe (retorna 404)
 - **Credenciais**: `DAPIC_EMPRESA` e `DAPIC_TOKEN_INTEGRACAO` (env secrets)
+
+#### ⚠️ **LIMITAÇÃO CRÍTICA - Vendas do PDV**
+**Problema identificado em 14 Nov 2025**: A API Dapic atualmente **NÃO fornece vendas finalizadas do PDV**. O endpoint `/v1/orcamentos` retorna apenas orçamentos/cotações (Status="Aberto"), não as vendas diárias que aparecem nos relatórios do Dapic.
+
+**Impacto**: 
+- Dashboard mostra R$ 0,00 em vendas mesmo com vendas reais no PDV
+- Relatórios PDF do Dapic mostram vendas (ex: R$ 7.803,14 em 13/11/2025), mas esses dados não aparecem na API
+- Cards "Vendas Hoje", "Vendas Semana", "Vendas Mês" ficam zerados
+
+**Solução necessária**:
+1. Entrar em contato com **suporte WebPic/Dapic** (https://www.webpic.com.br)
+2. Solicitar documentação de endpoint para **vendas finalizadas do PDV**
+3. Perguntar sobre endpoints: `/v1/vendas`, `/v1/vendas-pdv`, `/v1/nfe`, ou similar
+4. Após receber a documentação, integrar o novo endpoint em `server/dapic.ts` e `server/routes.ts`
+
+**Workaround temporário**: Aviso permanente no dashboard explicando a limitação
 
 ### WebSocket
 - **Path**: `/ws`

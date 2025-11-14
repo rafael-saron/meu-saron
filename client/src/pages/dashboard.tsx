@@ -237,7 +237,7 @@ export default function Dashboard() {
   const canChangeStore = user?.role === "administrador" && !user?.storeId;
 
   const isLoading = loadingClients || loadingSales || loadingProducts || loadingBills;
-  const hasError = clientsError || salesError || productsError;
+  const hasError = clientsError || salesError || productsError || billsError;
 
   return (
     <div className="space-y-6">
@@ -264,6 +264,37 @@ export default function Dashboard() {
           </AlertDescription>
         </Alert>
       )}
+
+      <Alert data-testid="alert-dapic-limitation">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Limitação da Integração Dapic</AlertTitle>
+        <AlertDescription>
+          <div className="space-y-2 text-sm mt-2">
+            <p>
+              <strong>Importante:</strong> A API Dapic atual retorna apenas <em>orçamentos (cotações)</em> através do endpoint <code className="bg-muted px-1 rounded">/v1/orcamentos</code>, não vendas finalizadas do PDV.
+            </p>
+            <p>
+              As vendas exibidas nos relatórios do Dapic (caixas fechados, vendas do dia) <strong>não estão disponíveis</strong> nesta integração. Por isso, os valores de vendas podem aparecer zerados ou incompletos.
+            </p>
+            <details className="mt-2">
+              <summary className="cursor-pointer font-medium" data-testid="button-expand-dapic-solution">
+                Como resolver isso? Clique para ver instruções
+              </summary>
+              <div className="mt-2 pl-4 border-l-2 border-border">
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Entre em contato com o <strong>suporte técnico da WebPic/Dapic</strong></li>
+                  <li>Solicite a <strong>documentação do endpoint de vendas finalizadas do PDV</strong></li>
+                  <li>Pergunte sobre endpoints como: <code className="bg-muted px-1 rounded">/v1/vendas</code>, <code className="bg-muted px-1 rounded">/v1/vendas-pdv</code>, ou <code className="bg-muted px-1 rounded">/v1/nfe</code></li>
+                  <li>Após receber a documentação, repasse ao desenvolvedor para integrar</li>
+                </ol>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Contato WebPic: <a href="https://www.webpic.com.br/" target="_blank" rel="noopener noreferrer" className="underline" data-testid="link-webpic-support">www.webpic.com.br</a>
+                </p>
+              </div>
+            </details>
+          </div>
+        </AlertDescription>
+      </Alert>
 
       {consolidatedErrors && (
         <Alert>
