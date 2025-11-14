@@ -347,13 +347,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { DataInicial, DataFinal, Pagina, RegistrosPorPagina } = req.query;
       
       const today = new Date();
-      const oneYearAgo = new Date();
-      oneYearAgo.setDate(today.getDate() - 365);
-      
       const formatDate = (date: Date) => date.toISOString().split('T')[0];
       
       const result = await dapicService.getClientes(storeId, {
-        DataInicial: (DataInicial as string) || formatDate(oneYearAgo),
+        DataInicial: (DataInicial as string) || "2020-01-01",
         DataFinal: (DataFinal as string) || formatDate(today),
         Pagina: Pagina ? parseInt(Pagina as string) : undefined,
         RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
@@ -396,13 +393,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { DataInicial, DataFinal, Pagina, RegistrosPorPagina } = req.query;
       
       const today = new Date();
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(today.getDate() - 30);
-      
       const formatDate = (date: Date) => date.toISOString().split('T')[0];
       
       const result = await dapicService.getOrcamentos(storeId, {
-        DataInicial: (DataInicial as string) || formatDate(thirtyDaysAgo),
+        DataInicial: (DataInicial as string) || "2020-01-01",
         DataFinal: (DataFinal as string) || formatDate(today),
         Pagina: Pagina ? parseInt(Pagina as string) : undefined,
         RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
@@ -445,13 +439,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { DataInicial, DataFinal, Pagina, RegistrosPorPagina } = req.query;
       
       const today = new Date();
-      const oneYearAgo = new Date();
-      oneYearAgo.setDate(today.getDate() - 365);
-      
       const formatDate = (date: Date) => date.toISOString().split('T')[0];
       
       const result = await dapicService.getProdutos(storeId, {
-        DataInicial: (DataInicial as string) || formatDate(oneYearAgo),
+        DataInicial: (DataInicial as string) || "2020-01-01",
         DataFinal: (DataFinal as string) || formatDate(today),
         Pagina: Pagina ? parseInt(Pagina as string) : undefined,
         RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
@@ -494,13 +485,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { DataInicial, DataFinal, Pagina, RegistrosPorPagina } = req.query;
       
       const today = new Date();
-      const ninetyDaysAgo = new Date();
-      ninetyDaysAgo.setDate(today.getDate() - 90);
-      
       const formatDate = (date: Date) => date.toISOString().split('T')[0];
       
       const result = await dapicService.getContasPagar(storeId, {
-        DataInicial: (DataInicial as string) || formatDate(ninetyDaysAgo),
+        DataInicial: (DataInicial as string) || "2020-01-01",
         DataFinal: (DataFinal as string) || formatDate(today),
         Pagina: Pagina ? parseInt(Pagina as string) : undefined,
         RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
