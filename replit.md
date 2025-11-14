@@ -110,16 +110,25 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
 ✅ Tratamento de erros em todas as rotas
 ✅ Axios instalado para chamadas HTTP
 
-### Mudanças Recentes (14 Nov 2025 00:50)
+### Mudanças Recentes (14 Nov 2025 01:30)
 - ✅ **Sistema de Vendas por Período com Filtro de Roles**:
   - Campo `storeId` (nullable text) adicionado ao schema users para vincular gerentes/vendedores a lojas específicas
   - Admin sem storeId: vê seletor multi-loja (pode trocar entre todas/saron1/saron2/saron3)
   - Gerente/Vendedor com storeId: fixados na sua loja, seletor oculto
-  - Função `parseBrazilianDate()` para parsing correto de datas dd/mm/yyyy do Dapic
+  - Função `parseBrazilianDate()` com validação robusta:
+    - Valida ranges: dia 1-31, mês 1-12, ano 1900-2100
+    - Detecta rollover inválido (ex: 32/13/2024 retorna null)
+    - Suporta formatos ISO (yyyy-mm-dd) e brasileiro (dd/mm/yyyy)
   - Helpers de filtro temporal: `isSameDay()`, `isInCurrentWeek()`, `isInCurrentMonth()`
   - Cards de vendas: Hoje, Semana (domingo a sábado), Mês atual
   - Valores formatados em BRL com 2 decimais
+  - **Role Scoping Seguro**: 
+    - selectedStore inicia como "" (falsy) para prevenir queries prematuras
+    - useEffect define selectedStore após user carregar
+    - Todos hooks useDapic têm `enabled: !!storeId` para bloquear queries até selectedStore estar pronto
+    - Elimina race condition entre carregamento de user e disparo de queries
   - Usuário demo mudado para role administrador (era vendedor)
+  - ✅ Testado com e2e: todos cards visíveis, formatação BRL correta, role scoping funcionando
 - ✅ **Dados Históricos Dapic**: DataInicial=2020-01-01 em todos os endpoints (clientes, orçamentos, produtos, contas-pagar)
 - ✅ **Sistema de Gestão de Usuários Completo**:
   - Página /usuarios com CRUD completo (criar, editar, deletar, listar)
