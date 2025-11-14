@@ -110,8 +110,17 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
 ✅ Tratamento de erros em todas as rotas
 ✅ Axios instalado para chamadas HTTP
 
-### Mudanças Recentes (13 Nov 2025 21:00)
-- ✅ **Correções Dapic**: Valores default para DataInicial/DataFinal (últimos 30 dias para orçamentos, 90 para contas a pagar)
+### Mudanças Recentes (14 Nov 2025 00:50)
+- ✅ **Sistema de Vendas por Período com Filtro de Roles**:
+  - Campo `storeId` (nullable text) adicionado ao schema users para vincular gerentes/vendedores a lojas específicas
+  - Admin sem storeId: vê seletor multi-loja (pode trocar entre todas/saron1/saron2/saron3)
+  - Gerente/Vendedor com storeId: fixados na sua loja, seletor oculto
+  - Função `parseBrazilianDate()` para parsing correto de datas dd/mm/yyyy do Dapic
+  - Helpers de filtro temporal: `isSameDay()`, `isInCurrentWeek()`, `isInCurrentMonth()`
+  - Cards de vendas: Hoje, Semana (domingo a sábado), Mês atual
+  - Valores formatados em BRL com 2 decimais
+  - Usuário demo mudado para role administrador (era vendedor)
+- ✅ **Dados Históricos Dapic**: DataInicial=2020-01-01 em todos os endpoints (clientes, orçamentos, produtos, contas-pagar)
 - ✅ **Sistema de Gestão de Usuários Completo**:
   - Página /usuarios com CRUD completo (criar, editar, deletar, listar)
   - Upload de foto de perfil
@@ -139,6 +148,7 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
   - Validação Zod em todos os endpoints de mutação
 - ✅ WebSocket corrigido para usar window.location.host
 - ⚠️ **Nota de Segurança**: Sistema atual usa usuário demo sem autenticação real. Endpoints de gestão de usuários preparados para autenticação futura mas não implementam autorização no momento.
+- ⚠️ **Limitação API Dapic**: Não há granularidade por vendedor individual, então vendedores veem totais da sua loja (não apenas suas vendas pessoais)
 
 ### Próximos Passos
 - Implementar autenticação real (login/logout) substituindo usuário demo

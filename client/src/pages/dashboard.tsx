@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { Users, ShoppingBag, Package, DollarSign } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Users, ShoppingBag, Package, DollarSign, Calendar, TrendingUp } from "lucide-react";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
@@ -9,9 +9,72 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { parseBrazilianCurrency } from "@/lib/currency";
+import { useUser } from "@/lib/user-context";
+
+function parseBrazilianDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  
+  if (dateStr.includes('-')) {
+    const date = new Date(dateStr);
+    return isNaN(date.getTime()) ? null : date;
+  }
+  
+  const parts = dateStr.split('/');
+  if (parts.length !== 3) return null;
+  
+  const day = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const year = parseInt(parts[2], 10);
+  
+  if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+  if (day < 1 || day > 31) return null;
+  if (month < 1 || month > 12) return null;
+  if (year < 1900 || year > 2100) return null;
+  
+  const date = new Date(year, month - 1, day);
+  
+  if (date.getDate() !== day || date.getMonth() !== month - 1 || date.getFullYear() !== year) {
+    return null;
+  }
+  
+  return date;
+}
+
+function isSameDay(date1: Date, date2: Date): boolean {
+  return date1.getFullYear() === date2.getFullYear() &&
+         date1.getMonth() === date2.getMonth() &&
+         date1.getDate() === date2.getDate();
+}
+
+function isInCurrentWeek(date: Date): boolean {
+  const now = new Date();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - now.getDay());
+  weekStart.setHours(0, 0, 0, 0);
+  
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
+  
+  return date >= weekStart && date <= weekEnd;
+}
+
+function isInCurrentMonth(date: Date): boolean {
+  const now = new Date();
+  return date.getFullYear() === now.getFullYear() &&
+         date.getMonth() === now.getMonth();
+}
 
 export default function Dashboard() {
-  const [selectedStore, setSelectedStore] = useState("saron1");
+  const { user } = useUser();
+  const [selectedStore, setSelectedStore] = useState<string>("");
+  
+  useEffect(() => {
+    if (user && !selectedStore) {
+      const defaultStore = user.role === "administrador" && !user.storeId ? "todas" : (user.storeId || "saron1");
+      setSelectedStore(defaultStore);
+    }
+  }, [user, selectedStore]);
 
   const { data: clientsData, isLoading: loadingClients, error: clientsError } = useDapicClientes(selectedStore);
   const { data: salesData, isLoading: loadingSales, error: salesError } = useDapicOrcamentos(selectedStore);
@@ -94,15 +157,11 @@ export default function Dashboard() {
     
     salesList.forEach((sale: any) => {
       if (sale.DataEmissao) {
-        try {
-          const date = new Date(sale.DataEmissao);
-          if (!isNaN(date.getTime())) {
-            const monthIndex = date.getMonth();
-            const monthKey = monthNames[monthIndex];
-            monthlyData[monthKey] = (monthlyData[monthKey] || 0) + parseBrazilianCurrency(sale.ValorTotal);
-          }
-        } catch (e) {
-          console.error('Error parsing date:', e);
+        const date = parseBrazilianDate(sale.DataEmissao);
+        if (date) {
+          const monthIndex = date.getMonth();
+          const monthKey = monthNames[monthIndex];
+          monthlyData[monthKey] = (monthlyData[monthKey] || 0) + parseBrazilianCurrency(sale.ValorTotal);
         }
       }
     });
@@ -113,6 +172,41 @@ export default function Dashboard() {
         month,
         value: monthlyData[month],
       }));
+  }, [salesData, isConsolidated]);
+
+  const periodSales = useMemo(() => {
+    if (!salesData) return { today: 0, week: 0, month: 0 };
+
+    const salesList = isConsolidated
+      ? Object.values(salesData.stores || {}).flatMap((storeData: any) => 
+          Array.isArray(storeData?.Resultado) ? storeData.Resultado : [])
+      : (Array.isArray(salesData?.Resultado) ? salesData.Resultado : []);
+
+    const now = new Date();
+    let today = 0;
+    let week = 0;
+    let month = 0;
+
+    salesList.forEach((sale: any) => {
+      if (sale.DataEmissao) {
+        const saleDate = parseBrazilianDate(sale.DataEmissao);
+        if (saleDate) {
+          const saleValue = parseBrazilianCurrency(sale.ValorTotal);
+          
+          if (isSameDay(saleDate, now)) {
+            today += saleValue;
+          }
+          if (isInCurrentWeek(saleDate)) {
+            week += saleValue;
+          }
+          if (isInCurrentMonth(saleDate)) {
+            month += saleValue;
+          }
+        }
+      }
+    });
+
+    return { today, week, month };
   }, [salesData, isConsolidated]);
 
   const topProductsData = useMemo(() => {
@@ -140,6 +234,8 @@ export default function Dashboard() {
       .map(([name, sales]) => ({ name, sales }));
   }, [salesData, isConsolidated]);
 
+  const canChangeStore = user?.role === "administrador" && !user?.storeId;
+
   const isLoading = loadingClients || loadingSales || loadingProducts || loadingBills;
   const hasError = clientsError || salesError || productsError || billsError;
 
@@ -151,8 +247,13 @@ export default function Dashboard() {
             Dashboard
           </h1>
           <p className="text-muted-foreground mt-1">Visão geral do desempenho da Saron</p>
+          {!canChangeStore && user?.storeId && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Você está visualizando dados da sua loja: {user.storeId}
+            </p>
+          )}
         </div>
-        <StoreSelector value={selectedStore} onChange={setSelectedStore} />
+        {canChangeStore && <StoreSelector value={selectedStore} onChange={setSelectedStore} />}
       </div>
 
       {hasError && (
@@ -222,6 +323,40 @@ export default function Dashboard() {
               icon={DollarSign}
               description={isConsolidated ? "todas as lojas" : "nesta loja"}
               data-testid="stat-bills"
+            />
+          </>
+        )}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        {isLoading ? (
+          <>
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+          </>
+        ) : (
+          <>
+            <StatCard
+              title="Vendas Hoje"
+              value={`R$ ${periodSales.today.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+              icon={Calendar}
+              description={isConsolidated ? "todas as lojas" : "nesta loja"}
+              data-testid="stat-sales-today"
+            />
+            <StatCard
+              title="Vendas Semana"
+              value={`R$ ${periodSales.week.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+              icon={TrendingUp}
+              description={isConsolidated ? "todas as lojas" : "nesta loja"}
+              data-testid="stat-sales-week"
+            />
+            <StatCard
+              title="Vendas Mês"
+              value={`R$ ${periodSales.month.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+              icon={DollarSign}
+              description={isConsolidated ? "todas as lojas" : "nesta loja"}
+              data-testid="stat-sales-month"
             />
           </>
         )}
