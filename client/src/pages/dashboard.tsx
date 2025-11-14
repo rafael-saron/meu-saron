@@ -237,7 +237,7 @@ export default function Dashboard() {
   const canChangeStore = user?.role === "administrador" && !user?.storeId;
 
   const isLoading = loadingClients || loadingSales || loadingProducts || loadingBills;
-  const hasError = clientsError || salesError || productsError || billsError;
+  const hasError = clientsError || salesError || productsError;
 
   return (
     <div className="space-y-6">
