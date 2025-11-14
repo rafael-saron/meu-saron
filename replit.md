@@ -126,7 +126,7 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
 ✅ Tratamento de erros em todas as rotas
 ✅ Axios instalado para chamadas HTTP
 
-### Mudanças Recentes (14 Nov 2025 01:30)
+### Mudanças Recentes (14 Nov 2025)
 - ✅ **Sistema de Vendas por Período com Filtro de Roles**:
   - Campo `storeId` (nullable text) adicionado ao schema users para vincular gerentes/vendedores a lojas específicas
   - Admin sem storeId: vê seletor multi-loja (pode trocar entre todas/saron1/saron2/saron3)
@@ -172,6 +172,13 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
   - Hash automático de senhas em createUser e updateUser
   - Validação Zod em todos os endpoints de mutação
 - ✅ WebSocket corrigido para usar window.location.host
+- ✅ **Documentação da Limitação API Dapic - Vendas PDV**:
+  - Aviso permanente no dashboard explicando que `/v1/orcamentos` retorna apenas cotações
+  - Seção expansível com instruções para contatar suporte Dapic
+  - Guia completo criado (GUIA_DAPIC_VENDAS_PDV.md) com passo a passo para solicitar endpoint de vendas
+  - Data-testids adicionados para testes automatizados (alert-dapic-limitation, button-expand-dapic-solution, link-webpic-support)
+  - Limitação documentada no replit.md com impacto e solução
+  - ✅ Testado com e2e: aviso visível, detalhes expansíveis, link para suporte funcionando
 - ⚠️ **Nota de Segurança**: Sistema atual usa usuário demo sem autenticação real. Endpoints de gestão de usuários preparados para autenticação futura mas não implementam autorização no momento.
 - ⚠️ **Limitação API Dapic**: Não há granularidade por vendedor individual, então vendedores veem totais da sua loja (não apenas suas vendas pessoais)
 
