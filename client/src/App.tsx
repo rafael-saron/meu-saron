@@ -10,6 +10,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserProvider, useUser } from "@/lib/user-context";
 import { useWebSocket } from "@/hooks/use-websocket";
+import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import Clientes from "@/pages/clientes";
 import Vendas from "@/pages/vendas";
@@ -22,7 +23,7 @@ import Anonimo from "@/pages/anonimo";
 import Usuarios from "@/pages/usuarios";
 import NotFound from "@/pages/not-found";
 
-function Router() {
+function AuthenticatedRouter() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
@@ -36,6 +37,15 @@ function Router() {
       <Route path="/anonimo" component={Anonimo} />
       <Route path="/usuarios" component={Usuarios} />
       <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function PublicRouter() {
+  return (
+    <Switch>
+      <Route path="/login" component={Login} />
+      <Route component={Login} />
     </Switch>
   );
 }
@@ -66,34 +76,58 @@ function GlobalWebSocketHandler() {
   return null;
 }
 
-function App() {
+function AppContent() {
+  const { user, isLoading } = useUser();
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <PublicRouter />;
+  }
+
+  return (
+    <>
+      <GlobalWebSocketHandler />
+      <SidebarProvider style={sidebarStyle as React.CSSProperties}>
+        <div className="flex h-screen w-full">
+          <AppSidebar />
+          <div className="flex flex-col flex-1 overflow-hidden">
+            <header className="flex items-center justify-between gap-4 p-4 border-b border-border bg-background">
+              <div className="flex items-center gap-4">
+                <SidebarTrigger data-testid="button-sidebar-toggle" />
+              </div>
+              <ThemeToggle />
+            </header>
+            <main className="flex-1 overflow-auto p-6 bg-background">
+              <AuthenticatedRouter />
+            </main>
+          </div>
+        </div>
+      </SidebarProvider>
+    </>
+  );
+}
+
+function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <UserProvider>
-        <GlobalWebSocketHandler />
         <ThemeProvider defaultTheme="light">
           <TooltipProvider>
-            <SidebarProvider style={sidebarStyle as React.CSSProperties}>
-              <div className="flex h-screen w-full">
-                <AppSidebar />
-                <div className="flex flex-col flex-1 overflow-hidden">
-                  <header className="flex items-center justify-between gap-4 p-4 border-b border-border bg-background">
-                    <div className="flex items-center gap-4">
-                      <SidebarTrigger data-testid="button-sidebar-toggle" />
-                    </div>
-                    <ThemeToggle />
-                  </header>
-                  <main className="flex-1 overflow-auto p-6 bg-background">
-                    <Router />
-                  </main>
-                </div>
-              </div>
-            </SidebarProvider>
+            <AppContent />
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>

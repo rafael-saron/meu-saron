@@ -1,43 +1,49 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, getQueryFn } from "@/lib/queryClient";
 import type { User } from "@shared/schema";
 
 interface UserContextType {
   user: User | null;
-  setUser: (user: User | null) => void;
+  isLoading: boolean;
   isAdmin: boolean;
+  logout: () => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem("user");
-    return saved ? JSON.parse(saved) : {
-      id: "demo-user-1",
-      username: "demo",
-      email: "demo@saron.com",
-      fullName: "Usuário Demo",
-      role: "administrador",
-      storeId: null,
-      isActive: true,
-      password: "",
-      avatar: null,
-      createdAt: new Date(),
-    };
+  const { data: user, isLoading } = useQuery<User | null>({
+    queryKey: ["/api/auth/me"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem("user", JSON.stringify(user));
-    } else {
-      localStorage.removeItem("user");
-    }
-  }, [user]);
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Erro ao fazer logout");
+      }
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(["/api/auth/me"], null);
+      queryClient.clear();
+    },
+  });
 
   const isAdmin = user?.role === "administrador";
 
+  const logout = () => {
+    logoutMutation.mutate();
+  };
+
   return (
-    <UserContext.Provider value={{ user, setUser, isAdmin }}>
+    <UserContext.Provider value={{ user: user || null, isLoading, isAdmin, logout }}>
       {children}
     </UserContext.Provider>
   );

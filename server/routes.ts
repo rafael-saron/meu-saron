@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import { dapicService } from "./dapic";
 import {
@@ -52,6 +53,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
         clients.delete(userId);
       }
     });
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const loginSchema = z.object({
+        username: z.string().min(1),
+        password: z.string().min(1),
+      });
+
+      const { username, password } = loginSchema.parse(req.body);
+      
+      const user = await storage.getUserByUsername(username);
+      
+      if (!user || !user.isActive) {
+        return res.status(401).json({ error: "Usuário ou senha incorretos" });
+      }
+
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      
+      if (!isValidPassword) {
+        return res.status(401).json({ error: "Usuário ou senha incorretos" });
+      }
+
+      const userWithoutPassword = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        storeId: user.storeId,
+        avatar: user.avatar,
+        isActive: user.isActive,
+      };
+
+      req.session.userId = user.id;
+      
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      console.error('Login error:', error);
+      res.status(400).json({ 
+        error: "Erro ao fazer login",
+        message: error.message 
+      });
+    }
+  });
+
+  app.post("/api/auth/logout", async (req, res) => {
+    req.session.destroy((err: any) => {
+      if (err) {
+        console.error('Logout error:', err);
+        return res.status(500).json({ error: "Erro ao fazer logout" });
+      }
+      res.json({ success: true });
+    });
+  });
+
+  app.get("/api/auth/me", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      
+      if (!user || !user.isActive) {
+        return res.status(401).json({ error: "Usuário não encontrado" });
+      }
+
+      const userWithoutPassword = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        storeId: user.storeId,
+        avatar: user.avatar,
+        isActive: user.isActive,
+      };
+
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      console.error('Error fetching current user:', error);
+      res.status(500).json({ error: "Erro ao buscar usuário" });
+    }
   });
 
   app.get("/api/users", async (req, res) => {

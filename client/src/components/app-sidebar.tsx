@@ -1,4 +1,4 @@
-import { Home, Users, ShoppingBag, Package, DollarSign, Calendar, Bell, MessageCircle, Send, LayoutDashboard, UserCog } from "lucide-react";
+import { Home, Users, ShoppingBag, Package, DollarSign, Calendar, Bell, MessageCircle, Send, LayoutDashboard, UserCog, LogOut } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -40,7 +40,7 @@ const adminItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { user } = useUser();
+  const { user, logout } = useUser();
   const { data: unreadData } = useUnreadCount(user?.id);
 
   const getInitials = (name: string) => {
@@ -161,7 +161,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mb-3">
           <Avatar className="h-9 w-9">
             <AvatarImage src={user?.avatar || ""} alt={user?.fullName} />
             <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">
@@ -175,6 +175,15 @@ export function AppSidebar() {
             </p>
           </div>
         </div>
+        <Button 
+          variant="outline" 
+          className="w-full justify-start gap-2"
+          onClick={logout}
+          data-testid="button-logout"
+        >
+          <LogOut className="h-4 w-4" />
+          <span>Sair</span>
+        </Button>
       </SidebarFooter>
     </Sidebar>
   );
