@@ -8,7 +8,6 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { StoreSelector } from "@/components/store-selector";
 import { UserProvider, useUser } from "@/lib/user-context";
 import { useWebSocket } from "@/hooks/use-websocket";
 import Dashboard from "@/pages/dashboard";
@@ -68,8 +67,6 @@ function GlobalWebSocketHandler() {
 }
 
 function App() {
-  const [selectedStore, setSelectedStore] = useState("all");
-
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -88,7 +85,6 @@ function App() {
                   <header className="flex items-center justify-between gap-4 p-4 border-b border-border bg-background">
                     <div className="flex items-center gap-4">
                       <SidebarTrigger data-testid="button-sidebar-toggle" />
-                      <StoreSelector value={selectedStore} onChange={setSelectedStore} />
                     </div>
                     <ThemeToggle />
                   </header>

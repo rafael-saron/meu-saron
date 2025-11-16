@@ -447,17 +447,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FiltrarPor: (FiltrarPor as string) || '0',
         Status: (Status as string) || '1',
         Pagina: Pagina ? parseInt(Pagina as string) : 1,
-        RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : 10000,
+        RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : 200,
       }) as any;
       
-      if (storeId === 'todas') {
-        res.json({
-          stores: result.data,
-          errors: result.errors,
-        });
-      } else {
-        res.json(result);
-      }
+      res.json(result);
     } catch (error: any) {
       console.error('Error fetching PDV sales from Dapic:', error);
       res.status(500).json({ 

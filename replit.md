@@ -85,8 +85,10 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
 - ✅ Método `getVendasPDV()` em `server/dapic.ts` com parâmetros padrão:
   - `FiltrarPor='0'` - Filtrar por data de fechamento
   - `Status='1'` - Apenas vendas fechadas
-  - `RegistrosPorPagina='1000'` - Limite alto para dados históricos
+  - `RegistrosPorPagina='200'` - **CRÍTICO**: API limita a 200 registros/página (não 1000)
   - `DataInicial='01/01/2020'` - Dados desde 2020
+  - **Paginação Automática**: Loop sequencial que busca todas as páginas até limite de 50 páginas (10.000 registros)
+  - **Performance**: ~2 minutos para buscar todo histórico (50 páginas × 200 registros)
 - ✅ Rota backend `/api/dapic/:storeId/vendaspdv`
 - ✅ Hook frontend `useDapicVendasPDV` com React Query
 - ✅ Dashboard atualizado para usar vendas PDV reais
@@ -178,14 +180,20 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
 - ✅ WebSocket corrigido para usar window.location.host
 - ✅ **Integração Vendas PDV Dapic (16 Nov 2025)**:
   - ✅ Descoberto endpoint correto: `/v1/vendaspdv` (sem hífen)
-  - ✅ Implementado `getVendasPDV()` em `server/dapic.ts`
+  - ✅ Implementado `getVendasPDV()` em `server/dapic.ts` com paginação automática
+  - ✅ **CORREÇÃO CRÍTICA (16 Nov 2025)**: Paginação completa implementada
+    - Problema: API retornava apenas 200 registros por loja (limitação de 200 registros/página)
+    - Solução: Implementada paginação automática sequencial que busca todas as páginas
+    - Lojas individuais: Pagina até 50 páginas × 200 registros = 10.000 vendas
+    - Modo consolidado ("todas"): **Paralelização com Promise.all** - busca todas as lojas simultaneamente
+    - Performance: ~2min para consolidado (3 lojas em paralelo) vs ~7.5min sequencial
   - ✅ Rota backend `/api/dapic/:storeId/vendaspdv` criada
   - ✅ Hook `useDapicVendasPDV` com React Query
   - ✅ Dashboard atualizado para exibir vendas PDV reais em vez de orçamentos
   - ✅ Normalização de moeda robusta: trata ValorLiquido como número ou string brasileira
   - ✅ Aviso de limitação removido do dashboard
-  - ✅ Dados consolidados e por loja funcionando
-  - ✅ Cards de período (Hoje, Semana, Mês) com valores PDV reais
+  - ✅ Dados consolidados e por loja funcionando com paginação completa
+  - ✅ Cards de período (Hoje, Semana, Mês) com valores PDV reais e precisos
   - ✅ Gráficos usando DataFechamento e ValorLiquido
 - ⚠️ **Nota de Segurança**: Sistema atual usa usuário demo sem autenticação real. Endpoints de gestão de usuários preparados para autenticação futura mas não implementam autorização no momento.
 - ⚠️ **Limitação API Dapic**: Não há granularidade por vendedor individual, então vendedores veem totais da sua loja (não apenas suas vendas pessoais)

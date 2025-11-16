@@ -170,11 +170,42 @@ class DapicService {
       RegistrosPorPagina: params?.RegistrosPorPagina || 200,
     };
     
+    // Se pedir "todas", buscar de cada loja em paralelo com paginação e mesclar
     if (storeId === 'todas') {
-      return this.makeRequestAllStores('/v1/vendaspdv', requestParams);
+      const availableStores = this.getAvailableStores();
+      
+      // Buscar todas as lojas em paralelo para melhor performance
+      const promises = availableStores.map(store => 
+        this.getVendasPDV(store, params).catch(err => {
+          console.error(`Erro ao buscar vendas PDV da loja ${store}:`, err.message);
+          return { Dados: [], Sucesso: false };
+        })
+      );
+      
+      const results = await Promise.all(promises);
+      const allResults: any[] = [];
+      let totalRegistros = 0;
+      
+      // Mesclar resultados de todas as lojas
+      for (const result of results) {
+        const dados = result?.Dados || [];
+        allResults.push(...dados);
+        totalRegistros += dados.length;
+      }
+      
+      return {
+        Dados: allResults,
+        Sucesso: true,
+        TotalRegistros: totalRegistros,
+        Paginacao: {
+          PaginaAtual: 1,
+          TotalPaginas: 1,
+          RegistrosPorPagina: totalRegistros,
+        },
+      };
     }
     
-    // Implementar paginação automática para obter todos os registros
+    // Implementar paginação automática para obter todos os registros de uma loja
     const registrosPorPagina = requestParams.RegistrosPorPagina;
     let paginaAtual = params?.Pagina || 1;
     let todosResultados: any[] = [];
@@ -182,7 +213,6 @@ class DapicService {
     let ultimoResultado: any = null;
     
     while (continuar) {
-      console.log(`🔄 Buscando página ${paginaAtual} de vendas PDV (${storeId})...`);
       const resultado = await this.makeRequest(storeId, '/v1/vendaspdv', {
         ...requestParams,
         Pagina: paginaAtual,
@@ -190,25 +220,21 @@ class DapicService {
       
       ultimoResultado = resultado;
       const dados = resultado?.Dados || [];
-      console.log(`✅ Página ${paginaAtual}: ${dados.length} registros recebidos`);
       todosResultados = todosResultados.concat(dados);
       
       // Se recebeu menos registros que o máximo, chegamos na última página
       if (dados.length < registrosPorPagina) {
-        console.log(`📄 Última página alcançada! Total acumulado: ${todosResultados.length} vendas`);
         continuar = false;
       } else {
         paginaAtual++;
       }
       
-      // Limite de segurança: não buscar mais de 50 páginas
+      // Limite de segurança: não buscar mais de 50 páginas (10.000 registros)
       if (paginaAtual > 50) {
-        console.warn(`Limite de paginação atingido (50 páginas) para vendas PDV`);
+        console.log(`Aviso: Limite de paginação atingido (50 páginas = 10.000 registros) para vendas PDV da loja ${storeId}`);
         continuar = false;
       }
     }
-    
-    console.log(`🎉 Paginação completa! Retornando ${todosResultados.length} vendas PDV`);
 
     
     return {
