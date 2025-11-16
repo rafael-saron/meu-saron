@@ -11,7 +11,7 @@ export function useDapicStores() {
   });
 }
 
-export function useDapicClientes(storeId: string, params?: { Pagina?: number; RegistrosPorPagina?: number }) {
+export function useDapicClientes(storeId: string, params?: { Pagina?: number; RegistrosPorPagina?: number; enabled?: boolean }) {
   return useQuery({
     queryKey: ["/api/dapic/clientes", storeId, params],
     queryFn: async () => {
@@ -24,7 +24,8 @@ export function useDapicClientes(storeId: string, params?: { Pagina?: number; Re
       if (!response.ok) throw new Error("Failed to fetch clients from Dapic");
       return response.json();
     },
-    enabled: !!storeId,
+    enabled: !!storeId && (params?.enabled !== false),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -59,6 +60,7 @@ export function useDapicVendasPDV(storeId: string, params?: {
   Status?: string;
   Pagina?: number;
   RegistrosPorPagina?: number;
+  enabled?: boolean;
 }) {
   return useQuery({
     queryKey: ["/api/dapic/vendaspdv", storeId, params],
@@ -76,11 +78,12 @@ export function useDapicVendasPDV(storeId: string, params?: {
       if (!response.ok) throw new Error("Failed to fetch PDV sales from Dapic");
       return response.json();
     },
-    enabled: !!storeId,
+    enabled: !!storeId && (params?.enabled !== false),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
-export function useDapicProdutos(storeId: string, params?: { Pagina?: number; RegistrosPorPagina?: number }) {
+export function useDapicProdutos(storeId: string, params?: { Pagina?: number; RegistrosPorPagina?: number; enabled?: boolean }) {
   return useQuery({
     queryKey: ["/api/dapic/produtos", storeId, params],
     queryFn: async () => {
@@ -93,7 +96,8 @@ export function useDapicProdutos(storeId: string, params?: { Pagina?: number; Re
       if (!response.ok) throw new Error("Failed to fetch products from Dapic");
       return response.json();
     },
-    enabled: !!storeId,
+    enabled: !!storeId && (params?.enabled !== false),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -102,6 +106,7 @@ export function useDapicContasPagar(storeId: string, params?: {
   DataFinal?: string;
   Pagina?: number;
   RegistrosPorPagina?: number;
+  enabled?: boolean;
 }) {
   return useQuery({
     queryKey: ["/api/dapic/contas-pagar", storeId, params],
@@ -117,6 +122,7 @@ export function useDapicContasPagar(storeId: string, params?: {
       if (!response.ok) throw new Error("Failed to fetch bills from Dapic");
       return response.json();
     },
-    enabled: !!storeId,
+    enabled: !!storeId && (params?.enabled !== false),
+    staleTime: 5 * 60 * 1000,
   });
 }

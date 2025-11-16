@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { LogIn } from "lucide-react";
+import logoSaron from "@assets/Logo Saron_1763050286995.png";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Usuário é obrigatório"),
@@ -72,10 +72,13 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <LogIn className="w-8 h-8 text-primary" />
-            </div>
+          <div className="flex justify-center mb-6">
+            <img 
+              src={logoSaron} 
+              alt="Logo Saron" 
+              className="h-24 w-auto object-contain"
+              data-testid="img-logo-saron"
+            />
           </div>
           <CardTitle className="text-2xl font-bold font-['Poppins']">
             Sistema Saron

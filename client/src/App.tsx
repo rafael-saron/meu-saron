@@ -11,7 +11,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { UserProvider, useUser } from "@/lib/user-context";
 import { useWebSocket } from "@/hooks/use-websocket";
 import Login from "@/pages/login";
-import Dashboard from "@/pages/dashboard";
+import Dashboard from "@/pages/dashboard-optimized";
 import Clientes from "@/pages/clientes";
 import Vendas from "@/pages/vendas";
 import Produtos from "@/pages/produtos";
