@@ -48,7 +48,7 @@ export default function Login() {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({
         title: "Login realizado",
-        description: "Bem-vindo ao sistema Saron!",
+        description: "Bem-vindo ao Meu Saron!",
       });
       setLocation("/");
     },
@@ -81,10 +81,10 @@ export default function Login() {
             />
           </div>
           <CardTitle className="text-2xl font-bold font-['Poppins']">
-            Sistema Saron
+            Meu Saron
           </CardTitle>
           <CardDescription>
-            Entre com suas credenciais para acessar o sistema
+            Entre com suas credenciais para acessar
           </CardDescription>
         </CardHeader>
         <CardContent>

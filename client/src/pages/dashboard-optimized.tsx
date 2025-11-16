@@ -235,9 +235,9 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-display font-semibold text-foreground" data-testid="text-dashboard-title">
-            Dashboard
+            Meu Saron
           </h1>
-          <p className="text-muted-foreground mt-1">Visão geral do desempenho da Saron</p>
+          <p className="text-muted-foreground mt-1">Visão geral do desempenho</p>
           {!canChangeStore && user?.storeId && (
             <p className="text-sm text-muted-foreground mt-1">
               Você está visualizando dados da sua loja: {user.storeId}
