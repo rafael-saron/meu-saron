@@ -42,6 +42,11 @@ The system is built with a modern stack:
 - Automatic admin user creation on first boot (`admin`/`admin123`).
 - Role scoping ensures data visibility is restricted based on user roles and assigned stores.
 
+**Known Performance Considerations:**
+- **Consolidated Data Loading**: When viewing "Todas as Lojas", the `/api/dapic/todas/vendaspdv` endpoint fetches data from all three stores in parallel with pagination (up to 50 pages per store = 30,000 records total). This can take 2+ minutes to complete.
+- **Chart Rendering Behavior**: Charts in the "Análises" tab may show loading placeholders while consolidated data is being fetched. Individual store views (Saron 1, 2, or 3) load significantly faster.
+- **API Response Format**: All consolidated endpoints (`/api/dapic/todas/*`) return `{ stores: { [storeId]: data }, errors: { [storeId]: error } }` format for consistency.
+
 ## External Dependencies
 - **Dapic ERP API**:
     - **Base URL**: `https://api.dapic.com.br`
