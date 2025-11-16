@@ -167,12 +167,54 @@ class DapicService {
       ...params,
       FiltrarPor: params?.FiltrarPor || '0',
       Status: params?.Status || '1',
+      RegistrosPorPagina: params?.RegistrosPorPagina || 200,
     };
     
     if (storeId === 'todas') {
       return this.makeRequestAllStores('/v1/vendaspdv', requestParams);
     }
-    return this.makeRequest(storeId, '/v1/vendaspdv', requestParams);
+    
+    // Implementar paginação automática para obter todos os registros
+    const registrosPorPagina = requestParams.RegistrosPorPagina;
+    let paginaAtual = params?.Pagina || 1;
+    let todosResultados: any[] = [];
+    let continuar = true;
+    let ultimoResultado: any = null;
+    
+    while (continuar) {
+      console.log(`🔄 Buscando página ${paginaAtual} de vendas PDV (${storeId})...`);
+      const resultado = await this.makeRequest(storeId, '/v1/vendaspdv', {
+        ...requestParams,
+        Pagina: paginaAtual,
+      }) as any;
+      
+      ultimoResultado = resultado;
+      const dados = resultado?.Dados || [];
+      console.log(`✅ Página ${paginaAtual}: ${dados.length} registros recebidos`);
+      todosResultados = todosResultados.concat(dados);
+      
+      // Se recebeu menos registros que o máximo, chegamos na última página
+      if (dados.length < registrosPorPagina) {
+        console.log(`📄 Última página alcançada! Total acumulado: ${todosResultados.length} vendas`);
+        continuar = false;
+      } else {
+        paginaAtual++;
+      }
+      
+      // Limite de segurança: não buscar mais de 50 páginas
+      if (paginaAtual > 50) {
+        console.warn(`Limite de paginação atingido (50 páginas) para vendas PDV`);
+        continuar = false;
+      }
+    }
+    
+    console.log(`🎉 Paginação completa! Retornando ${todosResultados.length} vendas PDV`);
+
+    
+    return {
+      ...ultimoResultado,
+      Dados: todosResultados,
+    };
   }
 
   async getProdutos(storeId: string, params?: {

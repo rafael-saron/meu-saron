@@ -446,8 +446,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         DataFinal: (DataFinal as string) || formatDate(today),
         FiltrarPor: (FiltrarPor as string) || '0',
         Status: (Status as string) || '1',
-        Pagina: Pagina ? parseInt(Pagina as string) : undefined,
-        RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
+        Pagina: Pagina ? parseInt(Pagina as string) : 1,
+        RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : 10000,
       }) as any;
       
       if (storeId === 'todas') {
