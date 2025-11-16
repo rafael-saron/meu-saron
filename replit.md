@@ -195,25 +195,38 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
   - ✅ Dados consolidados e por loja funcionando com paginação completa
   - ✅ Cards de período (Hoje, Semana, Mês) com valores PDV reais e precisos
   - ✅ Gráficos usando DataFechamento e ValorLiquido
-- ⚠️ **Nota de Segurança**: Sistema atual usa usuário demo sem autenticação real. Endpoints de gestão de usuários preparados para autenticação futura mas não implementam autorização no momento.
+- ✅ **Sistema de Autenticação Completo (16 Nov 2025)**:
+  - ✅ Página de login (`/login`) com formulário de usuário e senha
+  - ✅ Backend endpoints: POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me
+  - ✅ Express-session configurado com cookies httpOnly (7 dias de validade)
+  - ✅ Validação de credenciais com bcrypt (hash de senhas)
+  - ✅ UserContext refatorado para buscar usuário via API em vez de demo
+  - ✅ Proteção de rotas: usuários não autenticados redirecionados para /login
+  - ✅ Botão de logout no sidebar (limpa sessão e redireciona para login)
+  - ✅ Estados de loading e erro bem definidos
+  - ✅ Usuário admin criado automaticamente (username: admin, password: admin123)
+  - ✅ Testado end-to-end: login, navegação, logout, proteção de rotas
+  - ⚠️ **IMPORTANTE**: Trocar senha do admin após primeiro acesso!
 - ⚠️ **Limitação API Dapic**: Não há granularidade por vendedor individual, então vendedores veem totais da sua loja (não apenas suas vendas pessoais)
 
 ### Próximos Passos
-- Implementar autenticação real (login/logout) substituindo usuário demo
 - Adicionar middleware de autorização nos endpoints de gestão de usuários
-- Melhorias no Chat: iniciar nova conversa, contador de mensagens não lidas
+- Melhorias no Chat: iniciar nova conversa
 - Conectar Calendário, Avisos e Mensagens Anônimas ao PostgreSQL
 - Implementar sistema de notificações em tempo real
 - Busca de dados de funcionários via CPF no Dapic
+- Adicionar recuperação de senha
 
 ## Como Executar
 1. Variáveis de ambiente já configuradas (DATABASE_URL, DAPIC_EMPRESA, DAPIC_TOKEN_INTEGRACAO, SESSION_SECRET)
 2. Workflow "Start application" já está rodando (`npm run dev`)
 3. Acesso: http://localhost:5000
+4. **Login**: Use `admin` / `admin123` para primeiro acesso (trocar senha depois!)
 
 ## Notas Técnicas
 - Frontend e backend servidos na mesma porta (5000) via Vite proxy
 - WebSocket usa mesma porta do HTTP server
 - React Query com cache automático de dados do Dapic
-- Usuário demo criado automaticamente no contexto (pode ser substituído por autenticação real posteriormente)
+- Autenticação via express-session com cookies httpOnly (credentials: include)
+- Usuário admin criado automaticamente no primeiro boot (hash bcrypt)
 - Mensagens anônimas: funcionários enviam sem revelar identidade, mas admin vê userId do remetente no banco
