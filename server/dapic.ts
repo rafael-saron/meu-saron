@@ -170,39 +170,25 @@ class DapicService {
       RegistrosPorPagina: params?.RegistrosPorPagina || 200,
     };
     
-    // Se pedir "todas", buscar de cada loja em paralelo com paginação e mesclar
+    // Se pedir "todas", buscar de cada loja em paralelo mantendo dados separados
     if (storeId === 'todas') {
+      const data: Record<string, any> = {};
+      const errors: Record<string, string> = {};
       const availableStores = this.getAvailableStores();
       
-      // Buscar todas as lojas em paralelo para melhor performance
-      const promises = availableStores.map(store => 
-        this.getVendasPDV(store, params).catch(err => {
-          console.error(`Erro ao buscar vendas PDV da loja ${store}:`, err.message);
-          return { Dados: [], Sucesso: false };
+      await Promise.all(
+        availableStores.map(async (store) => {
+          try {
+            data[store] = await this.getVendasPDV(store, params);
+          } catch (error: any) {
+            const errorMsg = error.message || 'Unknown error';
+            console.error(`Erro ao buscar vendas PDV da loja ${store}:`, errorMsg);
+            errors[store] = errorMsg;
+          }
         })
       );
       
-      const results = await Promise.all(promises);
-      const allResults: any[] = [];
-      let totalRegistros = 0;
-      
-      // Mesclar resultados de todas as lojas
-      for (const result of results) {
-        const dados = result?.Dados || [];
-        allResults.push(...dados);
-        totalRegistros += dados.length;
-      }
-      
-      return {
-        Dados: allResults,
-        Sucesso: true,
-        TotalRegistros: totalRegistros,
-        Paginacao: {
-          PaginaAtual: 1,
-          TotalPaginas: 1,
-          RegistrosPorPagina: totalRegistros,
-        },
-      };
+      return { data, errors };
     }
     
     // Implementar paginação automática para obter todos os registros de uma loja
