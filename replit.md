@@ -78,42 +78,25 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
   - `/v1/contas-pagar`: ❌ Endpoint não existe (retorna 404)
 - **Credenciais**: `DAPIC_EMPRESA` e `DAPIC_TOKEN_INTEGRACAO` (env secrets)
 
-#### ⚠️ **LIMITAÇÃO CRÍTICA - Vendas do PDV**
-**Problema identificado em 14 Nov 2025**: A API Dapic atualmente **NÃO fornece vendas finalizadas do PDV**. O endpoint `/v1/orcamentos` retorna apenas orçamentos/cotações (Status="Aberto"), não as vendas diárias que aparecem nos relatórios do Dapic.
+#### ✅ **SOLUÇÃO ENCONTRADA - Vendas do PDV (16 Nov 2025)**
+**Descoberta**: O endpoint correto para vendas PDV é `/v1/vendaspdv` (sem hífen, tudo junto). Testes anteriores falharam porque usavam `/v1/vendas-pdv` (com hífen).
 
-**Impacto**: 
-- Dashboard mostra R$ 0,00 em vendas mesmo com vendas reais no PDV
-- Relatórios PDF do Dapic mostram vendas (ex: R$ 7.803,14 em 13/11/2025), mas esses dados não aparecem na API
-- Cards "Vendas Hoje", "Vendas Semana", "Vendas Mês" ficam zerados
+**Integração implementada**:
+- ✅ Método `getVendasPDV()` em `server/dapic.ts` com parâmetros padrão:
+  - `FiltrarPor='0'` - Filtrar por data de fechamento
+  - `Status='1'` - Apenas vendas fechadas
+  - `RegistrosPorPagina='1000'` - Limite alto para dados históricos
+  - `DataInicial='01/01/2020'` - Dados desde 2020
+- ✅ Rota backend `/api/dapic/:storeId/vendaspdv`
+- ✅ Hook frontend `useDapicVendasPDV` com React Query
+- ✅ Dashboard atualizado para usar vendas PDV reais
+- ✅ Normalização de moeda: `ValorLiquido` pode vir como número ou string brasileira, tratado em todos os cálculos
+- ✅ Aviso de limitação removido do dashboard
 
-**Testes realizados em 16 Nov 2025**:
-Foram testados 12 endpoints diferentes para encontrar vendas do PDV:
-- ❌ `/v1/vendas` - 404 Not Found
-- ❌ `/v1/vendas-pdv` - 404 Not Found
-- ❌ `/v1/nfe` - 404 Not Found
-- ❌ `/v1/pedidos` - 404 Not Found
-- ❌ `/v1/movimentos` - 404 Not Found
-- ❌ `/v1/caixas` - 404 Not Found
-- ❌ `/v1/caixa` - 404 Not Found
-- ❌ `/v1/fiscal/vendas` - 404 Not Found
-- ❌ `/v1/fiscal/nfe` - 404 Not Found
-- ❌ `/v1/notas-fiscais` - 404 Not Found
-- ❌ `/v1/financeiro/vendas` - 404 Not Found
-- ✅ `/v1/orcamentos?Status=Fechado` - Retorna vazio (confirma que vendas não aparecem como orçamentos fechados)
-
-**Conclusão**: Nenhum dos endpoints testados retorna vendas finalizadas do PDV. Ver detalhes em `RESULTADO_TESTE_ENDPOINTS_DAPIC.md`
-
-**Solução necessária**:
-1. Entrar em contato com **suporte WebPic/Dapic** (https://www.webpic.com.br)
-2. Solicitar documentação de endpoint para **vendas finalizadas do PDV**
-3. Mencionar que já foram testados 12 endpoints sem sucesso (fortalece o pedido)
-4. Após receber a documentação, integrar o novo endpoint em `server/dapic.ts` e `server/routes.ts`
-
-**Documentos de referência**:
-- `GUIA_DAPIC_VENDAS_PDV.md` - Guia passo a passo para contatar o suporte
-- `RESULTADO_TESTE_ENDPOINTS_DAPIC.md` - Evidência técnica dos testes realizados
-
-**Workaround temporário**: Aviso permanente no dashboard explicando a limitação
+**Estrutura dos dados PDV**:
+- Array: `Dados` (não `Resultado`)
+- Campos: `ValorLiquido`, `DataFechamento`, `Vendedor`, `Status`, `NFCE`, `Cliente`
+- Valores monetários normalizados com `parseBrazilianCurrency` para compatibilidade
 
 ### WebSocket
 - **Path**: `/ws`
@@ -193,13 +176,17 @@ Foram testados 12 endpoints diferentes para encontrar vendas do PDV:
   - Hash automático de senhas em createUser e updateUser
   - Validação Zod em todos os endpoints de mutação
 - ✅ WebSocket corrigido para usar window.location.host
-- ✅ **Documentação da Limitação API Dapic - Vendas PDV**:
-  - Aviso permanente no dashboard explicando que `/v1/orcamentos` retorna apenas cotações
-  - Seção expansível com instruções para contatar suporte Dapic
-  - Guia completo criado (GUIA_DAPIC_VENDAS_PDV.md) com passo a passo para solicitar endpoint de vendas
-  - Data-testids adicionados para testes automatizados (alert-dapic-limitation, button-expand-dapic-solution, link-webpic-support)
-  - Limitação documentada no replit.md com impacto e solução
-  - ✅ Testado com e2e: aviso visível, detalhes expansíveis, link para suporte funcionando
+- ✅ **Integração Vendas PDV Dapic (16 Nov 2025)**:
+  - ✅ Descoberto endpoint correto: `/v1/vendaspdv` (sem hífen)
+  - ✅ Implementado `getVendasPDV()` em `server/dapic.ts`
+  - ✅ Rota backend `/api/dapic/:storeId/vendaspdv` criada
+  - ✅ Hook `useDapicVendasPDV` com React Query
+  - ✅ Dashboard atualizado para exibir vendas PDV reais em vez de orçamentos
+  - ✅ Normalização de moeda robusta: trata ValorLiquido como número ou string brasileira
+  - ✅ Aviso de limitação removido do dashboard
+  - ✅ Dados consolidados e por loja funcionando
+  - ✅ Cards de período (Hoje, Semana, Mês) com valores PDV reais
+  - ✅ Gráficos usando DataFechamento e ValorLiquido
 - ⚠️ **Nota de Segurança**: Sistema atual usa usuário demo sem autenticação real. Endpoints de gestão de usuários preparados para autenticação futura mas não implementam autorização no momento.
 - ⚠️ **Limitação API Dapic**: Não há granularidade por vendedor individual, então vendedores veem totais da sua loja (não apenas suas vendas pessoais)
 
