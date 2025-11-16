@@ -4,7 +4,7 @@ import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 import { StoreSelector } from "@/components/store-selector";
-import { useDapicClientes, useDapicOrcamentos, useDapicProdutos, useDapicContasPagar } from "@/hooks/use-dapic";
+import { useDapicClientes, useDapicVendasPDV, useDapicProdutos, useDapicContasPagar } from "@/hooks/use-dapic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
@@ -77,7 +77,7 @@ export default function Dashboard() {
   }, [user, selectedStore]);
 
   const { data: clientsData, isLoading: loadingClients, error: clientsError } = useDapicClientes(selectedStore);
-  const { data: salesData, isLoading: loadingSales, error: salesError } = useDapicOrcamentos(selectedStore);
+  const { data: salesData, isLoading: loadingSales, error: salesError } = useDapicVendasPDV(selectedStore);
   const { data: productsData, isLoading: loadingProducts, error: productsError } = useDapicProdutos(selectedStore);
   const { data: billsData, isLoading: loadingBills, error: billsError } = useDapicContasPagar(selectedStore);
 
@@ -110,8 +110,11 @@ export default function Dashboard() {
       }, 0);
 
       const totalSales = Object.values(salesData?.stores || {}).reduce((acc: number, storeData: any) => {
-        const orcamentos = Array.isArray(storeData?.Resultado) ? storeData.Resultado : [];
-        return acc + orcamentos.reduce((sum: number, orc: any) => sum + parseBrazilianCurrency(orc?.ValorTotal), 0);
+        const vendas = Array.isArray(storeData?.Dados) ? storeData.Dados : [];
+        return acc + vendas.reduce((sum: number, venda: any) => {
+          const valor = typeof venda?.ValorLiquido === 'number' ? venda.ValorLiquido : parseBrazilianCurrency(venda?.ValorLiquido);
+          return sum + valor;
+        }, 0);
       }, 0);
 
       const totalProducts = Object.values(productsData?.stores || {}).reduce((acc: number, storeData: any) => {
@@ -132,13 +135,16 @@ export default function Dashboard() {
     }
 
     const clients = Array.isArray(clientsData?.Resultado) ? clientsData.Resultado : [];
-    const sales = Array.isArray(salesData?.Resultado) ? salesData.Resultado : [];
+    const sales = Array.isArray(salesData?.Dados) ? salesData.Dados : [];
     const products = Array.isArray(productsData?.Dados) ? productsData.Dados : [];
     const bills = Array.isArray(billsData?.Resultado) ? billsData.Resultado : [];
 
     return {
       totalClients: clients.length,
-      totalSales: sales.reduce((sum: number, sale: any) => sum + parseBrazilianCurrency(sale?.ValorTotal), 0),
+      totalSales: sales.reduce((sum: number, sale: any) => {
+        const valor = typeof sale?.ValorLiquido === 'number' ? sale.ValorLiquido : parseBrazilianCurrency(sale?.ValorLiquido);
+        return sum + valor;
+      }, 0),
       totalProducts: products.length,
       totalBills: bills.reduce((sum: number, bill: any) => sum + parseBrazilianCurrency(bill?.Valor), 0),
     };
@@ -149,19 +155,20 @@ export default function Dashboard() {
 
     const salesList = isConsolidated 
       ? Object.values(salesData.stores || {}).flatMap((storeData: any) => 
-          Array.isArray(storeData?.Resultado) ? storeData.Resultado : [])
-      : (Array.isArray(salesData?.Resultado) ? salesData.Resultado : []);
+          Array.isArray(storeData?.Dados) ? storeData.Dados : [])
+      : (Array.isArray(salesData?.Dados) ? salesData.Dados : []);
 
     const monthlyData: Record<string, number> = {};
     const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     
     salesList.forEach((sale: any) => {
-      if (sale.DataEmissao) {
-        const date = parseBrazilianDate(sale.DataEmissao);
+      if (sale.DataFechamento) {
+        const date = parseBrazilianDate(sale.DataFechamento);
         if (date) {
           const monthIndex = date.getMonth();
           const monthKey = monthNames[monthIndex];
-          monthlyData[monthKey] = (monthlyData[monthKey] || 0) + parseBrazilianCurrency(sale.ValorTotal);
+          const valor = typeof sale?.ValorLiquido === 'number' ? sale.ValorLiquido : parseBrazilianCurrency(sale?.ValorLiquido);
+          monthlyData[monthKey] = (monthlyData[monthKey] || 0) + valor;
         }
       }
     });
@@ -179,8 +186,8 @@ export default function Dashboard() {
 
     const salesList = isConsolidated
       ? Object.values(salesData.stores || {}).flatMap((storeData: any) => 
-          Array.isArray(storeData?.Resultado) ? storeData.Resultado : [])
-      : (Array.isArray(salesData?.Resultado) ? salesData.Resultado : []);
+          Array.isArray(storeData?.Dados) ? storeData.Dados : [])
+      : (Array.isArray(salesData?.Dados) ? salesData.Dados : []);
 
     const now = new Date();
     let today = 0;
@@ -188,10 +195,10 @@ export default function Dashboard() {
     let month = 0;
 
     salesList.forEach((sale: any) => {
-      if (sale.DataEmissao) {
-        const saleDate = parseBrazilianDate(sale.DataEmissao);
+      if (sale.DataFechamento) {
+        const saleDate = parseBrazilianDate(sale.DataFechamento);
         if (saleDate) {
-          const saleValue = parseBrazilianCurrency(sale.ValorTotal);
+          const saleValue = typeof sale?.ValorLiquido === 'number' ? sale.ValorLiquido : parseBrazilianCurrency(sale?.ValorLiquido);
           
           if (isSameDay(saleDate, now)) {
             today += saleValue;
@@ -214,8 +221,8 @@ export default function Dashboard() {
 
     const salesList = isConsolidated
       ? Object.values(salesData.stores || {}).flatMap((storeData: any) => 
-          Array.isArray(storeData?.Resultado) ? storeData.Resultado : [])
-      : (Array.isArray(salesData?.Resultado) ? salesData.Resultado : []);
+          Array.isArray(storeData?.Dados) ? storeData.Dados : [])
+      : (Array.isArray(salesData?.Dados) ? salesData.Dados : []);
 
     const productCounts: Record<string, number> = {};
     salesList.forEach((sale: any) => {
@@ -264,37 +271,6 @@ export default function Dashboard() {
           </AlertDescription>
         </Alert>
       )}
-
-      <Alert data-testid="alert-dapic-limitation">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Limitação da Integração Dapic</AlertTitle>
-        <AlertDescription>
-          <div className="space-y-2 text-sm mt-2">
-            <p>
-              <strong>Importante:</strong> A API Dapic atual retorna apenas <em>orçamentos (cotações)</em> através do endpoint <code className="bg-muted px-1 rounded">/v1/orcamentos</code>, não vendas finalizadas do PDV.
-            </p>
-            <p>
-              As vendas exibidas nos relatórios do Dapic (caixas fechados, vendas do dia) <strong>não estão disponíveis</strong> nesta integração. Por isso, os valores de vendas podem aparecer zerados ou incompletos.
-            </p>
-            <details className="mt-2">
-              <summary className="cursor-pointer font-medium" data-testid="button-expand-dapic-solution">
-                Como resolver isso? Clique para ver instruções
-              </summary>
-              <div className="mt-2 pl-4 border-l-2 border-border">
-                <ol className="list-decimal list-inside space-y-1">
-                  <li>Entre em contato com o <strong>suporte técnico da WebPic/Dapic</strong></li>
-                  <li>Solicite a <strong>documentação do endpoint de vendas finalizadas do PDV</strong></li>
-                  <li>Pergunte sobre endpoints como: <code className="bg-muted px-1 rounded">/v1/vendas</code>, <code className="bg-muted px-1 rounded">/v1/vendas-pdv</code>, ou <code className="bg-muted px-1 rounded">/v1/nfe</code></li>
-                  <li>Após receber a documentação, repasse ao desenvolvedor para integrar</li>
-                </ol>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Contato WebPic: <a href="https://www.webpic.com.br/" target="_blank" rel="noopener noreferrer" className="underline" data-testid="link-webpic-support">www.webpic.com.br</a>
-                </p>
-              </div>
-            </details>
-          </div>
-        </AlertDescription>
-      </Alert>
 
       {consolidatedErrors && (
         <Alert>

@@ -168,7 +168,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const sendChatMessageHandler = async (req: express.Request, res: express.Response) => {
+  const sendChatMessageHandler = async (req: any, res: any) => {
     try {
       const validatedData = insertChatMessageSchema.parse(req.body);
       const newMessage = await storage.createChatMessage(validatedData);
@@ -428,6 +428,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error fetching order from Dapic:', error);
       res.status(500).json({ 
         error: "Failed to fetch order from Dapic",
+        message: error.message 
+      });
+    }
+  });
+
+  app.get("/api/dapic/:storeId/vendaspdv", async (req, res) => {
+    try {
+      const { storeId } = req.params;
+      const { DataInicial, DataFinal, FiltrarPor, Status, Pagina, RegistrosPorPagina } = req.query;
+      
+      const today = new Date();
+      const formatDate = (date: Date) => date.toISOString().split('T')[0];
+      
+      const result = await dapicService.getVendasPDV(storeId, {
+        DataInicial: (DataInicial as string) || "2020-01-01",
+        DataFinal: (DataFinal as string) || formatDate(today),
+        FiltrarPor: (FiltrarPor as string) || '0',
+        Status: (Status as string) || '1',
+        Pagina: Pagina ? parseInt(Pagina as string) : undefined,
+        RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
+      }) as any;
+      
+      if (storeId === 'todas') {
+        res.json({
+          stores: result.data,
+          errors: result.errors,
+        });
+      } else {
+        res.json(result);
+      }
+    } catch (error: any) {
+      console.error('Error fetching PDV sales from Dapic:', error);
+      res.status(500).json({ 
+        error: "Failed to fetch PDV sales from Dapic",
         message: error.message 
       });
     }

@@ -52,6 +52,34 @@ export function useDapicOrcamentos(storeId: string, params?: {
   });
 }
 
+export function useDapicVendasPDV(storeId: string, params?: { 
+  DataInicial?: string; 
+  DataFinal?: string;
+  FiltrarPor?: string;
+  Status?: string;
+  Pagina?: number;
+  RegistrosPorPagina?: number;
+}) {
+  return useQuery({
+    queryKey: ["/api/dapic/vendaspdv", storeId, params],
+    queryFn: async () => {
+      const queryParams = new URLSearchParams();
+      if (params?.DataInicial) queryParams.append("DataInicial", params.DataInicial);
+      if (params?.DataFinal) queryParams.append("DataFinal", params.DataFinal);
+      if (params?.FiltrarPor) queryParams.append("FiltrarPor", params.FiltrarPor);
+      if (params?.Status) queryParams.append("Status", params.Status);
+      if (params?.Pagina) queryParams.append("Pagina", params.Pagina.toString());
+      if (params?.RegistrosPorPagina) queryParams.append("RegistrosPorPagina", params.RegistrosPorPagina.toString());
+      
+      const url = `/api/dapic/${storeId}/vendaspdv${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to fetch PDV sales from Dapic");
+      return response.json();
+    },
+    enabled: !!storeId,
+  });
+}
+
 export function useDapicProdutos(storeId: string, params?: { Pagina?: number; RegistrosPorPagina?: number }) {
   return useQuery({
     queryKey: ["/api/dapic/produtos", storeId, params],

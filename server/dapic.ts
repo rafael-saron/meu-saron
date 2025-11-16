@@ -155,6 +155,26 @@ class DapicService {
     return this.makeRequest(storeId, `/v1/orcamentos/${id}`);
   }
 
+  async getVendasPDV(storeId: string, params?: {
+    DataInicial?: string;
+    DataFinal?: string;
+    FiltrarPor?: string;
+    Status?: string;
+    Pagina?: number;
+    RegistrosPorPagina?: number;
+  }) {
+    const requestParams = {
+      ...params,
+      FiltrarPor: params?.FiltrarPor || '0',
+      Status: params?.Status || '1',
+    };
+    
+    if (storeId === 'todas') {
+      return this.makeRequestAllStores('/v1/vendaspdv', requestParams);
+    }
+    return this.makeRequest(storeId, '/v1/vendaspdv', requestParams);
+  }
+
   async getProdutos(storeId: string, params?: {
     DataInicial?: string;
     DataFinal?: string;
