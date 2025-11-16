@@ -86,11 +86,32 @@ Sistema de gestão intranet completo para a loja de roupas Saron, integrado com 
 - Relatórios PDF do Dapic mostram vendas (ex: R$ 7.803,14 em 13/11/2025), mas esses dados não aparecem na API
 - Cards "Vendas Hoje", "Vendas Semana", "Vendas Mês" ficam zerados
 
+**Testes realizados em 16 Nov 2025**:
+Foram testados 12 endpoints diferentes para encontrar vendas do PDV:
+- ❌ `/v1/vendas` - 404 Not Found
+- ❌ `/v1/vendas-pdv` - 404 Not Found
+- ❌ `/v1/nfe` - 404 Not Found
+- ❌ `/v1/pedidos` - 404 Not Found
+- ❌ `/v1/movimentos` - 404 Not Found
+- ❌ `/v1/caixas` - 404 Not Found
+- ❌ `/v1/caixa` - 404 Not Found
+- ❌ `/v1/fiscal/vendas` - 404 Not Found
+- ❌ `/v1/fiscal/nfe` - 404 Not Found
+- ❌ `/v1/notas-fiscais` - 404 Not Found
+- ❌ `/v1/financeiro/vendas` - 404 Not Found
+- ✅ `/v1/orcamentos?Status=Fechado` - Retorna vazio (confirma que vendas não aparecem como orçamentos fechados)
+
+**Conclusão**: Nenhum dos endpoints testados retorna vendas finalizadas do PDV. Ver detalhes em `RESULTADO_TESTE_ENDPOINTS_DAPIC.md`
+
 **Solução necessária**:
 1. Entrar em contato com **suporte WebPic/Dapic** (https://www.webpic.com.br)
 2. Solicitar documentação de endpoint para **vendas finalizadas do PDV**
-3. Perguntar sobre endpoints: `/v1/vendas`, `/v1/vendas-pdv`, `/v1/nfe`, ou similar
+3. Mencionar que já foram testados 12 endpoints sem sucesso (fortalece o pedido)
 4. Após receber a documentação, integrar o novo endpoint em `server/dapic.ts` e `server/routes.ts`
+
+**Documentos de referência**:
+- `GUIA_DAPIC_VENDAS_PDV.md` - Guia passo a passo para contatar o suporte
+- `RESULTADO_TESTE_ENDPOINTS_DAPIC.md` - Evidência técnica dos testes realizados
 
 **Workaround temporário**: Aviso permanente no dashboard explicando a limitação
 
