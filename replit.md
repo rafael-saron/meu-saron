@@ -85,6 +85,7 @@ The system is built with a modern stack:
   - Pagination: 100 clients per page
   - Fallback support for both `Resultado` and `Dados` response formats
 - **Sales Page (Vendas PDV)**: 
+  - **Default Store**: "Todas as Lojas" (consolidated view across all stores)
   - Default 30 days of sales with customizable date filters
   - Date range filters: data inicial and data final with calendar icon
   - Displays total sales, quantity, and average ticket metrics
@@ -106,7 +107,8 @@ The system is built with a modern stack:
         - `/v1/clientes`
         - `/v1/orcamentos` (for quotations)
         - `/v1/produtos`
-        - `/v1/vendaspdv` (for finalized POS sales, discovered after initial limitations)
+        - `/v1/vendaspdv` (for finalized POS sales)
+        - `/v1/contaspagar` (accounts payable - endpoint configured but may not be available in current Dapic environment)
     - **Credentials**: `DAPIC_EMPRESA` and `DAPIC_TOKEN_INTEGRACAO` (environment secrets).
 - **PostgreSQL Database**: Utilized through Neon, accessed via Drizzle ORM.
 - **Axios**: For HTTP client requests.
