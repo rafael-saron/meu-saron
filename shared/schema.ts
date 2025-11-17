@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, decimal, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -56,6 +56,20 @@ export const anonymousMessages = pgTable("anonymous_messages", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const salesGoals = pgTable("sales_goals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: text("type").notNull(),
+  storeId: text("store_id").notNull(),
+  sellerId: varchar("seller_id").references(() => users.id),
+  weekStart: date("week_start").notNull(),
+  weekEnd: date("week_end").notNull(),
+  targetValue: decimal("target_value", { precision: 12, scale: 2 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdById: varchar("created_by_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   sentMessages: many(chatMessages, { relationName: "sentMessages" }),
   receivedMessages: many(chatMessages, { relationName: "receivedMessages" }),
@@ -63,6 +77,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   createdEvents: many(scheduleEvents, { relationName: "createdEvents" }),
   announcements: many(announcements),
   anonymousMessages: many(anonymousMessages),
+  salesGoals: many(salesGoals, { relationName: "sellerGoals" }),
+  createdGoals: many(salesGoals, { relationName: "createdGoals" }),
 }));
 
 export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
@@ -105,6 +121,19 @@ export const anonymousMessagesRelations = relations(anonymousMessages, ({ one })
   }),
 }));
 
+export const salesGoalsRelations = relations(salesGoals, ({ one }) => ({
+  seller: one(users, {
+    fields: [salesGoals.sellerId],
+    references: [users.id],
+    relationName: "sellerGoals",
+  }),
+  createdBy: one(users, {
+    fields: [salesGoals.createdById],
+    references: [users.id],
+    relationName: "createdGoals",
+  }),
+}));
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -135,6 +164,16 @@ export const insertAnonymousMessageSchema = createInsertSchema(anonymousMessages
   isRead: true,
 });
 
+export const insertSalesGoalSchema = createInsertSchema(salesGoals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  type: z.enum(["individual", "team"]),
+  storeId: z.enum(["saron1", "saron2", "saron3"]),
+  targetValue: z.string().or(z.number()).transform((val) => String(val)),
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type ChatMessage = typeof chatMessages.$inferSelect;
@@ -145,7 +184,11 @@ export type Announcement = typeof announcements.$inferSelect;
 export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
 export type AnonymousMessage = typeof anonymousMessages.$inferSelect;
 export type InsertAnonymousMessage = z.infer<typeof insertAnonymousMessageSchema>;
+export type SalesGoal = typeof salesGoals.$inferSelect;
+export type InsertSalesGoal = z.infer<typeof insertSalesGoalSchema>;
 
 export type UserRole = "administrador" | "gerente" | "vendedor" | "financeiro";
 export type ScheduleEventType = "normal" | "extra";
 export type AnnouncementPriority = "normal" | "important" | "urgent";
+export type GoalType = "individual" | "team";
+export type StoreId = "saron1" | "saron2" | "saron3";
