@@ -442,7 +442,7 @@ function GoalProgressCard({
   getWeekLabel: (weekStart: string, weekEnd: string) => string;
 }) {
   const { data: progress, isLoading } = useQuery<GoalProgress>({
-    queryKey: ["/api/goals/progress", goal.id],
+    queryKey: ['/api/goals/progress', { goalId: goal.id }],
     refetchInterval: 60000,
   });
 
