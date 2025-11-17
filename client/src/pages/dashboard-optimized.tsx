@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
-import { Users, ShoppingBag, Package, DollarSign, Calendar, TrendingUp } from "lucide-react";
+import { Users, ShoppingBag, Package, DollarSign, Calendar, TrendingUp, CalendarDays } from "lucide-react";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 import { StoreSelector } from "@/components/store-selector";
 import { useDapicClientes, useDapicVendasPDV, useDapicProdutos, useDapicContasPagar } from "@/hooks/use-dapic";
@@ -141,6 +143,9 @@ export default function Dashboard() {
   const { user } = useUser();
   const [selectedStore, setSelectedStore] = useState<string>("");
   const [activeTab, setActiveTab] = useState<string>("resumo");
+  const [customDateFilter, setCustomDateFilter] = useState(false);
+  const [dataInicial, setDataInicial] = useState<string>(thirtyDaysAgoStr);
+  const [dataFinal, setDataFinal] = useState<string>(todayStr);
   
   useEffect(() => {
     if (user && !selectedStore) {
@@ -155,6 +160,14 @@ export default function Dashboard() {
   const enableBillsData = activeTab === "dados-completos";
 
   const salesQueryParams = useMemo(() => {
+    if (customDateFilter) {
+      return {
+        DataInicial: dataInicial,
+        DataFinal: dataFinal,
+        enabled: enableSalesData,
+      };
+    }
+    
     if (activeTab === "resumo") {
       return {
         DataInicial: thirtyDaysAgoStr,
@@ -167,7 +180,7 @@ export default function Dashboard() {
       DataFinal: todayStr,
       enabled: enableSalesData,
     };
-  }, [activeTab, enableSalesData]);
+  }, [activeTab, enableSalesData, customDateFilter, dataInicial, dataFinal]);
 
   const { data: clientsData, isLoading: loadingClients } = useDapicClientes(selectedStore, { enabled: enableClientsData });
   const { data: salesData, isLoading: loadingSales } = useDapicVendasPDV(selectedStore, salesQueryParams);
@@ -290,6 +303,53 @@ export default function Dashboard() {
         </div>
         {canChangeStore && <StoreSelector value={selectedStore} onChange={setSelectedStore} />}
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="date"
+                  value={dataInicial}
+                  onChange={(e) => {
+                    setDataInicial(e.target.value);
+                    setCustomDateFilter(true);
+                  }}
+                  className="w-40"
+                  data-testid="input-date-start"
+                />
+                <span className="text-sm text-muted-foreground">até</span>
+                <Input
+                  type="date"
+                  value={dataFinal}
+                  onChange={(e) => {
+                    setDataFinal(e.target.value);
+                    setCustomDateFilter(true);
+                  }}
+                  className="w-40"
+                  data-testid="input-date-end"
+                />
+              </div>
+              {customDateFilter && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setCustomDateFilter(false);
+                    setDataInicial(thirtyDaysAgoStr);
+                    setDataFinal(todayStr);
+                  }}
+                  data-testid="button-reset-dates"
+                >
+                  Limpar Filtro
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList data-testid="tabs-dashboard">

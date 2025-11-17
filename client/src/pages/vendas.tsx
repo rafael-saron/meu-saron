@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, DollarSign, ShoppingCart, TrendingUp, Calendar } from "lucide-react";
+import { Search, DollarSign, ShoppingCart, TrendingUp, Calendar, CalendarDays } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -43,9 +43,12 @@ export default function Vendas() {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   
+  const [dataInicial, setDataInicial] = useState(format(thirtyDaysAgo, 'yyyy-MM-dd'));
+  const [dataFinal, setDataFinal] = useState(format(new Date(), 'yyyy-MM-dd'));
+  
   const { data, isLoading, error } = useDapicVendasPDV(selectedStore, {
-    DataInicial: format(thirtyDaysAgo, 'yyyy-MM-dd'),
-    DataFinal: format(new Date(), 'yyyy-MM-dd'),
+    DataInicial: dataInicial,
+    DataFinal: dataFinal,
   });
 
   const isConsolidated = selectedStore === "todas";
@@ -131,7 +134,7 @@ export default function Vendas() {
             Vendas PDV
           </h1>
           <p className="text-muted-foreground mt-1">
-            Últimos 30 dias - {filteredSales.length.toLocaleString('pt-BR')} vendas
+            {filteredSales.length.toLocaleString('pt-BR')} vendas
           </p>
         </div>
         <StoreSelector value={selectedStore} onChange={setSelectedStore} />
@@ -186,19 +189,41 @@ export default function Vendas() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por cliente, código ou vendedor..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="pl-10"
-                data-testid="input-search-sales"
-              />
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="date"
+                  value={dataInicial}
+                  onChange={(e) => setDataInicial(e.target.value)}
+                  className="w-40"
+                  data-testid="input-date-start"
+                />
+                <span className="text-sm text-muted-foreground">até</span>
+                <Input
+                  type="date"
+                  value={dataFinal}
+                  onChange={(e) => setDataFinal(e.target.value)}
+                  className="w-40"
+                  data-testid="input-date-end"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por cliente, código ou vendedor..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="pl-10"
+                  data-testid="input-search-sales"
+                />
+              </div>
             </div>
           </div>
         </CardHeader>

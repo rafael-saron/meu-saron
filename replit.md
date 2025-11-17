@@ -21,11 +21,14 @@ The system is built with a modern stack:
 **UI/UX Decisions:**
 - **Color Scheme**: Primary colors are medium green (HSL 142° 55% 45%) along with white, black, and green accents.
 - **Logo**: The Saron logo is displayed on the login screen and sidebar, with automatic white/inverted version in dark mode using CSS filters (`dark:invert dark:brightness-0 dark:contrast-200`).
-- **Fonts**: Inter for body text, Poppins for titles, and Dancing Script (delicate handwriting) for "Meu Saron" branding on login screen.
+- **Fonts**: Inter for body text, Poppins for titles and "Meu Saron" branding on login screen (font-display font-bold for modern, professional look).
 - **Dark Mode**: Full support with a toggle, including logo inversion for visibility.
 - **Components**: Shadcn/UI is used extensively, with custom color theming applied via `index.css`.
 - **Dashboard Optimization**: Features an optimized dashboard with a tabbed architecture for on-demand data loading (Resumo, Análises, Dados Completos) to improve performance.
-  - **Data Time Windows**: "Resumo" tab shows last 30 days only; "Análises" and "Dados Completos" tabs show all historical data (since 2020).
+  - **Data Time Windows**: "Resumo" tab shows last 30 days by default; "Análises" and "Dados Completos" tabs show all historical data (since 2020) by default
+  - **Custom Date Filters**: Users can override default periods with custom date range (data inicial to data final)
+  - "Limpar Filtro" button appears when custom dates are active and resets to default 30-day period
+  - Custom date filters have precedence over tab-based date presets
 
 **Technical Implementations & Feature Specifications:**
 - **Database Schema**: Includes `users` (with roles: administrador, gerente, vendedor, financeiro), `chatMessages`, `scheduleEvents`, `announcements`, and `anonymousMessages`.
@@ -73,8 +76,15 @@ The system is built with a modern stack:
   - Shared data across all stores (no duplicate products)
   - Sort by name OR code with A-Z/Z-A toggle
   - Pagination: 100 products per page
+- **Clients Page**:
+  - Unified client database across all stores
+  - Displays name and document (CPF/CNPJ)
+  - Search by name, email, or document
+  - Pagination: 100 clients per page
+  - Fallback support for both `Resultado` and `Dados` response formats
 - **Sales Page (Vendas PDV)**: 
-  - Shows last 30 days of sales per store
+  - Default 30 days of sales with customizable date filters
+  - Date range filters: data inicial and data final with calendar icon
   - Displays total sales, quantity, and average ticket metrics
   - Full table with columns: Code, Date, Client, Salesperson, Total Value, Status
   - Uses `ValorLiquido` field (with fallback to `ValorTotal`) for consistency with dashboard
