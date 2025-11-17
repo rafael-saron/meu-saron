@@ -128,11 +128,90 @@ class DapicService {
     DataFinal?: string;
     Pagina?: number;
     RegistrosPorPagina?: number;
-  }) {
+  }): Promise<any> {
+    // Clientes são compartilhados entre todas as lojas no Dapic
+    // Para "todas", buscar de uma loja e replicar resultado para todas (evita chamadas duplicadas)
     if (storeId === 'todas') {
-      return this.makeRequestAllStores('/v1/clientes', params);
+      const availableStores = this.getAvailableStores();
+      if (availableStores.length === 0) {
+        return { data: {}, errors: { todas: 'Nenhuma loja configurada' } };
+      }
+      
+      // Tentar buscar de cada loja até conseguir
+      let canonicalData: any = null;
+      const errors: Record<string, string> = {};
+      
+      // Remover Pagina do params para forçar paginação automática completa
+      const paramsWithoutPagina = params ? { ...params } : {};
+      delete paramsWithoutPagina.Pagina;
+      
+      for (const store of availableStores) {
+        try {
+          canonicalData = await this.getClientes(store, paramsWithoutPagina);
+          break; // Sucesso, não precisa tentar outras lojas
+        } catch (error: any) {
+          errors[store] = error.message || 'Erro ao buscar clientes';
+        }
+      }
+      
+      if (!canonicalData) {
+        return { data: {}, errors };
+      }
+      
+      // Replicar dados para todas as lojas disponíveis (manter contrato de resposta)
+      const data: Record<string, any> = {};
+      for (const store of availableStores) {
+        data[store] = canonicalData;
+      }
+      
+      // Preservar erros de lojas que falharam antes de conseguir sucesso
+      return { data, errors };
     }
-    return this.makeRequest(storeId, '/v1/clientes', params);
+    
+    // Se o usuário especificou uma página, não fazer paginação automática
+    if (params?.Pagina) {
+      return this.makeRequest(storeId, '/v1/clientes', params);
+    }
+    
+    // Paginação automática para obter todos os registros
+    const requestParams = {
+      ...params,
+      RegistrosPorPagina: params?.RegistrosPorPagina || 200,
+    };
+    
+    const registrosPorPagina = requestParams.RegistrosPorPagina;
+    let paginaAtual = 1;
+    let todosResultados: any[] = [];
+    let ultimoResultado: any = null;
+    let continuar = true;
+    
+    while (continuar) {
+      const resultado = await this.makeRequest(storeId, '/v1/clientes', {
+        ...requestParams,
+        Pagina: paginaAtual,
+      }) as any;
+      
+      ultimoResultado = resultado;
+      const dados = resultado?.Dados || [];
+      todosResultados = todosResultados.concat(dados);
+      
+      if (dados.length < registrosPorPagina) {
+        continuar = false;
+      } else {
+        paginaAtual++;
+      }
+      
+      // Limite de segurança: não buscar mais de 100 páginas (20.000 registros)
+      if (paginaAtual > 100) {
+        console.log(`Aviso: Limite de paginação atingido (100 páginas) para clientes`);
+        continuar = false;
+      }
+    }
+    
+    return {
+      ...ultimoResultado,
+      Dados: todosResultados,
+    };
   }
 
   async getCliente(storeId: string, id: number) {
@@ -234,11 +313,90 @@ class DapicService {
     DataFinal?: string;
     Pagina?: number;
     RegistrosPorPagina?: number;
-  }) {
+  }): Promise<any> {
+    // Produtos são compartilhados entre todas as lojas no Dapic
+    // Para "todas", buscar de uma loja e replicar resultado para todas (evita chamadas duplicadas)
     if (storeId === 'todas') {
-      return this.makeRequestAllStores('/v1/produtos', params);
+      const availableStores = this.getAvailableStores();
+      if (availableStores.length === 0) {
+        return { data: {}, errors: { todas: 'Nenhuma loja configurada' } };
+      }
+      
+      // Tentar buscar de cada loja até conseguir
+      let canonicalData: any = null;
+      const errors: Record<string, string> = {};
+      
+      // Remover Pagina do params para forçar paginação automática completa
+      const paramsWithoutPagina = params ? { ...params } : {};
+      delete paramsWithoutPagina.Pagina;
+      
+      for (const store of availableStores) {
+        try {
+          canonicalData = await this.getProdutos(store, paramsWithoutPagina);
+          break; // Sucesso, não precisa tentar outras lojas
+        } catch (error: any) {
+          errors[store] = error.message || 'Erro ao buscar produtos';
+        }
+      }
+      
+      if (!canonicalData) {
+        return { data: {}, errors };
+      }
+      
+      // Replicar dados para todas as lojas disponíveis (manter contrato de resposta)
+      const data: Record<string, any> = {};
+      for (const store of availableStores) {
+        data[store] = canonicalData;
+      }
+      
+      // Preservar erros de lojas que falharam antes de conseguir sucesso
+      return { data, errors };
     }
-    return this.makeRequest(storeId, '/v1/produtos', params);
+    
+    // Se o usuário especificou uma página, não fazer paginação automática
+    if (params?.Pagina) {
+      return this.makeRequest(storeId, '/v1/produtos', params);
+    }
+    
+    // Paginação automática para obter todos os registros
+    const requestParams = {
+      ...params,
+      RegistrosPorPagina: params?.RegistrosPorPagina || 200,
+    };
+    
+    const registrosPorPagina = requestParams.RegistrosPorPagina;
+    let paginaAtual = 1;
+    let todosResultados: any[] = [];
+    let ultimoResultado: any = null;
+    let continuar = true;
+    
+    while (continuar) {
+      const resultado = await this.makeRequest(storeId, '/v1/produtos', {
+        ...requestParams,
+        Pagina: paginaAtual,
+      }) as any;
+      
+      ultimoResultado = resultado;
+      const dados = resultado?.Dados || [];
+      todosResultados = todosResultados.concat(dados);
+      
+      if (dados.length < registrosPorPagina) {
+        continuar = false;
+      } else {
+        paginaAtual++;
+      }
+      
+      // Limite de segurança: não buscar mais de 10 páginas (2.000 registros)
+      if (paginaAtual > 10) {
+        console.log(`Aviso: Limite de paginação atingido (10 páginas) para produtos`);
+        continuar = false;
+      }
+    }
+    
+    return {
+      ...ultimoResultado,
+      Dados: todosResultados,
+    };
   }
 
   async getProduto(storeId: string, id: number) {
