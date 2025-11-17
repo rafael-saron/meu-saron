@@ -76,7 +76,7 @@ export default function Login() {
             <img 
               src={logoSaron} 
               alt="Logo Saron" 
-              className="h-24 w-auto object-contain"
+              className="h-24 w-auto object-contain dark:invert dark:brightness-0 dark:contrast-200"
               data-testid="img-logo-saron"
             />
           </div>
@@ -144,10 +144,6 @@ export default function Login() {
               </Button>
             </form>
           </Form>
-          <div className="mt-4 text-center text-sm text-muted-foreground">
-            <p>Usuário padrão: <strong>admin</strong></p>
-            <p>Senha padrão: <strong>admin123</strong></p>
-          </div>
         </CardContent>
       </Card>
     </div>
