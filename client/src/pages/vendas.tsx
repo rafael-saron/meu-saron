@@ -48,7 +48,23 @@ export default function Vendas() {
     DataFinal: format(new Date(), 'yyyy-MM-dd'),
   });
 
-  const salesList = data?.Dados || [];
+  const isConsolidated = selectedStore === "todas";
+  
+  const salesList = useMemo(() => {
+    if (!data) return [];
+    
+    if (isConsolidated && data.stores) {
+      return Object.values(data.stores).flatMap((storeData: any) => 
+        Array.isArray(storeData?.Dados) ? storeData.Dados : []
+      );
+    }
+    
+    if (Array.isArray(data?.Dados)) {
+      return data.Dados;
+    }
+    
+    return [];
+  }, [data, isConsolidated]);
 
   const stats = useMemo(() => {
     const total = salesList.reduce((sum: number, sale: any) => 

@@ -67,6 +67,76 @@ function isInCurrentMonth(date: Date): boolean {
          date.getMonth() === now.getMonth();
 }
 
+const today = new Date();
+const todayStr = format(today, 'yyyy-MM-dd');
+const thirtyDaysAgo = new Date();
+thirtyDaysAgo.setDate(today.getDate() - 30);
+const thirtyDaysAgoStr = format(thirtyDaysAgo, 'yyyy-MM-dd');
+
+const extractSalesList = (salesData: any, isConsolidated: boolean): any[] => {
+  if (!salesData) return [];
+  
+  if (isConsolidated && salesData.stores) {
+    return Object.values(salesData.stores).flatMap((storeData: any) => 
+      Array.isArray(storeData?.Dados) ? storeData.Dados : []
+    );
+  }
+  
+  if (Array.isArray(salesData?.Dados)) {
+    return salesData.Dados;
+  }
+  
+  return [];
+};
+
+const extractClientsList = (clientsData: any, isConsolidated: boolean): any[] => {
+  if (!clientsData) return [];
+  
+  if (isConsolidated && clientsData.stores) {
+    return Object.values(clientsData.stores).flatMap((storeData: any) => 
+      Array.isArray(storeData?.Resultado) ? storeData.Resultado : []
+    );
+  }
+  
+  if (Array.isArray(clientsData?.Resultado)) {
+    return clientsData.Resultado;
+  }
+  
+  return [];
+};
+
+const extractProductsList = (productsData: any, isConsolidated: boolean): any[] => {
+  if (!productsData) return [];
+  
+  if (isConsolidated && productsData.stores) {
+    return Object.values(productsData.stores).flatMap((storeData: any) => 
+      Array.isArray(storeData?.Dados) ? storeData.Dados : []
+    );
+  }
+  
+  if (Array.isArray(productsData?.Dados)) {
+    return productsData.Dados;
+  }
+  
+  return [];
+};
+
+const extractBillsList = (billsData: any, isConsolidated: boolean): any[] => {
+  if (!billsData) return [];
+  
+  if (isConsolidated && billsData.stores) {
+    return Object.values(billsData.stores).flatMap((storeData: any) => 
+      Array.isArray(storeData?.Resultado) ? storeData.Resultado : []
+    );
+  }
+  
+  if (Array.isArray(billsData?.Resultado)) {
+    return billsData.Resultado;
+  }
+  
+  return [];
+};
+
 export default function Dashboard() {
   const { user } = useUser();
   const [selectedStore, setSelectedStore] = useState<string>("");
@@ -86,17 +156,15 @@ export default function Dashboard() {
 
   const salesQueryParams = useMemo(() => {
     if (activeTab === "resumo") {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       return {
-        DataInicial: format(thirtyDaysAgo, 'yyyy-MM-dd'),
-        DataFinal: format(new Date(), 'yyyy-MM-dd'),
+        DataInicial: thirtyDaysAgoStr,
+        DataFinal: todayStr,
         enabled: enableSalesData,
       };
     }
     return {
       DataInicial: '2020-01-01',
-      DataFinal: format(new Date(), 'yyyy-MM-dd'),
+      DataFinal: todayStr,
       enabled: enableSalesData,
     };
   }, [activeTab, enableSalesData]);
@@ -109,12 +177,8 @@ export default function Dashboard() {
   const isConsolidated = selectedStore === "todas";
 
   const periodSales = useMemo(() => {
-    if (!salesData) return { today: 0, week: 0, month: 0 };
-
-    const salesList = isConsolidated
-      ? Object.values(salesData.stores || {}).flatMap((storeData: any) => 
-          Array.isArray(storeData?.Dados) ? storeData.Dados : [])
-      : (Array.isArray(salesData?.Dados) ? salesData.Dados : []);
+    const salesList = extractSalesList(salesData, isConsolidated);
+    if (salesList.length === 0) return { today: 0, week: 0, month: 0 };
 
     const now = new Date();
     let today = 0;
@@ -144,12 +208,8 @@ export default function Dashboard() {
   }, [salesData, isConsolidated]);
 
   const chartData = useMemo(() => {
-    if (!salesData) return [];
-
-    const salesList = isConsolidated 
-      ? Object.values(salesData.stores || {}).flatMap((storeData: any) => 
-          Array.isArray(storeData?.Dados) ? storeData.Dados : [])
-      : (Array.isArray(salesData?.Dados) ? salesData.Dados : []);
+    const salesList = extractSalesList(salesData, isConsolidated);
+    if (salesList.length === 0) return [];
 
     const monthlyData: Record<string, number> = {};
     const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -175,12 +235,8 @@ export default function Dashboard() {
   }, [salesData, isConsolidated]);
 
   const topProductsData = useMemo(() => {
-    if (!salesData) return [];
-
-    const salesList = isConsolidated
-      ? Object.values(salesData.stores || {}).flatMap((storeData: any) => 
-          Array.isArray(storeData?.Dados) ? storeData.Dados : [])
-      : (Array.isArray(salesData?.Dados) ? salesData.Dados : []);
+    const salesList = extractSalesList(salesData, isConsolidated);
+    if (salesList.length === 0) return [];
 
     const productCounts: Record<string, number> = {};
     salesList.forEach((sale: any) => {
@@ -200,40 +256,10 @@ export default function Dashboard() {
   }, [salesData, isConsolidated]);
 
   const metrics = useMemo(() => {
-    if (isConsolidated && clientsData?.stores) {
-      const totalClients = Object.values(clientsData.stores).reduce((acc: number, storeData: any) => {
-        return acc + (Array.isArray(storeData?.Dados) ? storeData.Dados.length : 0);
-      }, 0);
-
-      const totalSales = Object.values(salesData?.stores || {}).reduce((acc: number, storeData: any) => {
-        const vendas = Array.isArray(storeData?.Dados) ? storeData.Dados : [];
-        return acc + vendas.reduce((sum: number, venda: any) => {
-          const valor = typeof venda?.ValorLiquido === 'number' ? venda.ValorLiquido : parseBrazilianCurrency(venda?.ValorLiquido);
-          return sum + valor;
-        }, 0);
-      }, 0);
-
-      const totalProducts = Object.values(productsData?.stores || {}).reduce((acc: number, storeData: any) => {
-        return acc + (Array.isArray(storeData?.Dados) ? storeData.Dados.length : 0);
-      }, 0);
-
-      const totalBills = Object.values(billsData?.stores || {}).reduce((acc: number, storeData: any) => {
-        const contas = Array.isArray(storeData?.Resultado) ? storeData.Resultado : [];
-        return acc + contas.reduce((sum: number, conta: any) => sum + parseBrazilianCurrency(conta?.Valor), 0);
-      }, 0);
-
-      return {
-        totalClients,
-        totalSales,
-        totalProducts,
-        totalBills,
-      };
-    }
-
-    const clients = Array.isArray(clientsData?.Resultado) ? clientsData.Resultado : [];
-    const sales = Array.isArray(salesData?.Dados) ? salesData.Dados : [];
-    const products = Array.isArray(productsData?.Dados) ? productsData.Dados : [];
-    const bills = Array.isArray(billsData?.Resultado) ? billsData.Resultado : [];
+    const clients = extractClientsList(clientsData, isConsolidated);
+    const sales = extractSalesList(salesData, isConsolidated);
+    const products = extractProductsList(productsData, isConsolidated);
+    const bills = extractBillsList(billsData, isConsolidated);
 
     return {
       totalClients: clients.length,
