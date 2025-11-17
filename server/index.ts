@@ -3,6 +3,7 @@ import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { DatabaseStorage } from "./storage";
+import { initializeCronJobs } from "./cronJobs";
 
 const app = express();
 
@@ -97,6 +98,8 @@ async function ensureAdminUser() {
   await ensureAdminUser();
   
   const server = await registerRoutes(app);
+  
+  initializeCronJobs();
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

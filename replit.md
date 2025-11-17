@@ -46,6 +46,27 @@ The system is built with a modern stack:
   - Session-based authorization (users can only edit their own profiles)
   - Form reset after successful updates to prevent stale dirty state
   - All inputs have data-testid attributes for testing
+- **Local Sales Storage System**: Complete sales data persistence and synchronization infrastructure
+  - **Database Schema**: 
+    - `sales` table: Stores sales with code, date, totalValue, sellerName, clientName, storeId, status
+    - `saleItems` table: Stores products sold with productCode, description, quantity, unitPrice, totalPrice
+    - Relations: One-to-many between sales and saleItems with cascade deletion
+  - **Automatic Synchronization**:
+    - **Monthly Cron Job**: Runs on day 1 at 00:05 (timezone São Paulo) to sync current month
+    - **Full History Sync**: On-demand sync from January 2024 onwards
+    - **Refresh Strategy**: DELETE-then-INSERT pattern ensures data accuracy
+    - **Error Isolation**: Per-store sync with independent error handling
+    - **Pagination**: Automatic Dapic pagination up to 100 pages per request
+  - **API Endpoints**:
+    - `POST /api/sales/sync`: Manual sync with custom date range and store selection
+    - `POST /api/sales/sync/full`: Full history sync (admin only)
+    - `GET /api/sales/sync/status`: Check sync status by store and period
+    - `GET /api/sales`: Query local sales with filters
+  - **Storage Layer**:
+    - `createSaleWithItems`: Atomic transaction for sale + items
+    - `getSales`: Filtered queries with case-insensitive seller matching
+    - `deleteSalesByPeriod`: Clean refresh for monthly sync
+  - **Data Mapping**: Robust field mapping from Dapic (Codigo, ValorLiquido, NomeVendedor, etc.) to local schema
 - **Sales Goals Management** (`/metas`): Complete weekly/monthly goals system with:
   - **Goal Types**: Individual (per seller) or Team/Conjunta (entire store)
   - **Period Support**: Weekly or Monthly tracking with appropriate date ranges
@@ -54,11 +75,12 @@ The system is built with a modern stack:
   - **Individual Goals**: Assign specific targets to individual sellers
   - **Team Goals**: Collective targets where all sellers contribute (aggregates entire store sales)
   - **Progress Visualization**: Real-time progress cards with color-coded indicators
-  - **Progress Calculation**: API endpoint `/api/goals/progress` calculates sales vs target
-    - **Case-Insensitive Matching**: Sales are matched to sellers using case-insensitive name comparison (fixes Dapic uppercase names)
+  - **Progress Calculation**: API endpoint `/api/goals/progress` calculates sales vs target **using local sales table**
+    - **Case-Insensitive Matching**: Sales are matched to sellers using normalized name comparison (LOWER/TRIM)
     - **Team Goal Aggregation**: Team goals sum ALL store sales, not filtered by seller
+    - **Multi-Store Support**: Goals for "todas as lojas" aggregate across all stores automatically
+    - **Local Data Source**: Queries `sales` table instead of real-time Dapic calls for performance
   - **Access Control**: Only administrador and gerente can create/modify goals
-  - **Integration with Dapic**: Pulls sales data from vendaspdv to calculate progress
   - **Auto-refresh**: Progress updates every 60 seconds
   - **Visual Indicators**: Green (100%+), Yellow (70%+), Orange (40%+), Red (<40%)
 - **Multi-Store Manager Support**:

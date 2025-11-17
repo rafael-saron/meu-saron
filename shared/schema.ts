@@ -80,6 +80,30 @@ export const userStores = pgTable("user_stores", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const sales = pgTable("sales", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  saleCode: text("sale_code").notNull(),
+  saleDate: date("sale_date").notNull(),
+  totalValue: decimal("total_value", { precision: 12, scale: 2 }).notNull(),
+  sellerName: text("seller_name").notNull(),
+  clientName: text("client_name"),
+  storeId: text("store_id").notNull(),
+  status: text("status").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const saleItems = pgTable("sale_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  saleId: varchar("sale_id").notNull().references(() => sales.id, { onDelete: 'cascade' }),
+  productCode: text("product_code").notNull(),
+  productDescription: text("product_description").notNull(),
+  quantity: decimal("quantity", { precision: 10, scale: 3 }).notNull(),
+  unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
+  totalPrice: decimal("total_price", { precision: 12, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   sentMessages: many(chatMessages, { relationName: "sentMessages" }),
   receivedMessages: many(chatMessages, { relationName: "receivedMessages" }),
@@ -152,6 +176,17 @@ export const salesGoalsRelations = relations(salesGoals, ({ one }) => ({
   }),
 }));
 
+export const salesRelations = relations(sales, ({ many }) => ({
+  items: many(saleItems),
+}));
+
+export const saleItemsRelations = relations(saleItems, ({ one }) => ({
+  sale: one(sales, {
+    fields: [saleItems.saleId],
+    references: [sales.id],
+  }),
+}));
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -199,10 +234,32 @@ export const insertUserStoreSchema = createInsertSchema(userStores).omit({
   createdAt: true,
 });
 
+export const insertSaleSchema = createInsertSchema(sales).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  storeId: z.enum(["saron1", "saron2", "saron3"]),
+  totalValue: z.string().or(z.number()).transform((val) => String(val)),
+});
+
+export const insertSaleItemSchema = createInsertSchema(saleItems).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  quantity: z.string().or(z.number()).transform((val) => String(val)),
+  unitPrice: z.string().or(z.number()).transform((val) => String(val)),
+  totalPrice: z.string().or(z.number()).transform((val) => String(val)),
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UserStore = typeof userStores.$inferSelect;
 export type InsertUserStore = z.infer<typeof insertUserStoreSchema>;
+export type Sale = typeof sales.$inferSelect;
+export type InsertSale = z.infer<typeof insertSaleSchema>;
+export type SaleItem = typeof saleItems.$inferSelect;
+export type InsertSaleItem = z.infer<typeof insertSaleItemSchema>;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
 export type ScheduleEvent = typeof scheduleEvents.$inferSelect;

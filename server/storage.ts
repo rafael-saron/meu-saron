@@ -7,6 +7,8 @@ import {
   anonymousMessages,
   salesGoals,
   userStores,
+  sales,
+  saleItems,
   type User,
   type InsertUser,
   type ChatMessage,
@@ -21,9 +23,13 @@ import {
   type InsertSalesGoal,
   type UserStore,
   type InsertUserStore,
+  type Sale,
+  type InsertSale,
+  type SaleItem,
+  type InsertSaleItem,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, or, desc, count, gte, lte } from "drizzle-orm";
+import { eq, and, or, desc, count, gte, lte, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -66,6 +72,23 @@ export interface IStorage {
   
   getUserStores(userId: string): Promise<UserStore[]>;
   setUserStores(userId: string, storeIds: string[]): Promise<void>;
+  
+  createSale(sale: InsertSale): Promise<Sale>;
+  createSaleItem(item: InsertSaleItem): Promise<SaleItem>;
+  createSaleWithItems(sale: InsertSale, items: InsertSaleItem[]): Promise<Sale>;
+  getSales(filters?: {
+    storeId?: string;
+    sellerName?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<Sale[]>;
+  getSalesWithItems(filters?: {
+    storeId?: string;
+    sellerName?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<(Sale & { items: SaleItem[] })[]>;
+  deleteSalesByPeriod(storeId: string, startDate: string, endDate: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -272,6 +295,93 @@ export class DatabaseStorage implements IStorage {
       }));
       await db.insert(userStores).values(values);
     }
+  }
+  
+  async createSale(insertSale: InsertSale): Promise<Sale> {
+    const [sale] = await db.insert(sales).values(insertSale).returning();
+    return sale;
+  }
+  
+  async createSaleItem(insertItem: InsertSaleItem): Promise<SaleItem> {
+    const [item] = await db.insert(saleItems).values(insertItem).returning();
+    return item;
+  }
+  
+  async createSaleWithItems(insertSale: InsertSale, insertItems: InsertSaleItem[]): Promise<Sale> {
+    return await db.transaction(async (tx) => {
+      const [sale] = await tx.insert(sales).values(insertSale).returning();
+      
+      if (insertItems.length > 0) {
+        const itemsWithSaleId = insertItems.map(item => ({
+          ...item,
+          saleId: sale.id,
+        }));
+        await tx.insert(saleItems).values(itemsWithSaleId);
+      }
+      
+      return sale;
+    });
+  }
+  
+  async getSales(filters?: {
+    storeId?: string;
+    sellerName?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<Sale[]> {
+    let query = db.select().from(sales);
+    const conditions = [];
+    
+    if (filters?.storeId && filters.storeId !== 'todas') {
+      conditions.push(eq(sales.storeId, filters.storeId));
+    }
+    if (filters?.sellerName) {
+      const normalizedName = filters.sellerName.toLowerCase().trim();
+      conditions.push(sql`LOWER(TRIM(${sales.sellerName})) = ${normalizedName}`);
+    }
+    if (filters?.startDate) {
+      conditions.push(gte(sales.saleDate, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(sales.saleDate, filters.endDate));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return await query.orderBy(desc(sales.saleDate));
+  }
+  
+  async getSalesWithItems(filters?: {
+    storeId?: string;
+    sellerName?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<(Sale & { items: SaleItem[] })[]> {
+    const salesList = await this.getSales(filters);
+    
+    const salesWithItems = await Promise.all(
+      salesList.map(async (sale) => {
+        const items = await db
+          .select()
+          .from(saleItems)
+          .where(eq(saleItems.saleId, sale.id));
+        return { ...sale, items };
+      })
+    );
+    
+    return salesWithItems;
+  }
+  
+  async deleteSalesByPeriod(storeId: string, startDate: string, endDate: string): Promise<void> {
+    await db.delete(sales).where(
+      and(
+        eq(sales.storeId, storeId),
+        gte(sales.saleDate, startDate),
+        lte(sales.saleDate, endDate)
+      )
+    );
   }
 }
 

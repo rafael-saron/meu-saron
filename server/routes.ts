@@ -8,6 +8,7 @@ import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
 import { dapicService } from "./dapic";
+import { salesSyncService } from "./salesSync";
 import {
   insertChatMessageSchema,
   insertScheduleEventSchema,
@@ -720,55 +721,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const targetWeekStart = (goalId && goal) ? goal.weekStart : (weekStart as string);
       const targetWeekEnd = (goalId && goal) ? goal.weekEnd : (weekEnd as string);
 
-      const salesData = await dapicService.getVendasPDV(targetStoreId, {
-        DataInicial: targetWeekStart,
-        DataFinal: targetWeekEnd,
-      }) as any;
-
       let totalSales = 0;
       
-      if (targetStoreId === 'todas' && salesData.data) {
-        Object.values(salesData.data).forEach((storeData: any) => {
-          const sales = storeData?.Resultado || storeData?.Dados || [];
-          sales.forEach((sale: any) => {
-            const value = parseFloat(sale.ValorLiquido || sale.ValorTotal || 0);
-            if (!isNaN(value)) {
-              totalSales += value;
-            }
-          });
+      if (goal && goal.type === 'individual' && goal.sellerId) {
+        const sellerUser = await storage.getUser(goal.sellerId);
+        const sellerName = sellerUser?.fullName;
+        
+        const sales = await storage.getSales({
+          storeId: targetStoreId,
+          sellerName: sellerName,
+          startDate: targetWeekStart,
+          endDate: targetWeekEnd,
         });
+        
+        totalSales = sales.reduce((sum, sale) => {
+          const value = parseFloat(sale.totalValue);
+          return sum + (isNaN(value) ? 0 : value);
+        }, 0);
       } else {
-        const sales = salesData?.Resultado || salesData?.Dados || [];
-        if (goal && goal.type === 'individual' && goal.sellerId) {
-          // Individual goal: only count sales for the specific seller
-          const sellerUser = await storage.getUser(goal.sellerId);
-          const sellerFullNameLower = sellerUser?.fullName?.toLowerCase();
-          sales.forEach((sale: any) => {
-            const salesperson = (sale.NomeVendedor || sale.Vendedor || '').toLowerCase();
-            if (salesperson === sellerFullNameLower) {
-              const value = parseFloat(sale.ValorLiquido || sale.ValorTotal || 0);
-              if (!isNaN(value)) {
-                totalSales += value;
-              }
-            }
-          });
-        } else if (goal && goal.type === 'team') {
-          // Team goal: sum ALL sales from the store
-          sales.forEach((sale: any) => {
-            const value = parseFloat(sale.ValorLiquido || sale.ValorTotal || 0);
-            if (!isNaN(value)) {
-              totalSales += value;
-            }
-          });
-        } else {
-          // Fallback: sum all sales
-          sales.forEach((sale: any) => {
-            const value = parseFloat(sale.ValorLiquido || sale.ValorTotal || 0);
-            if (!isNaN(value)) {
-              totalSales += value;
-            }
-          });
-        }
+        const sales = await storage.getSales({
+          storeId: targetStoreId,
+          startDate: targetWeekStart,
+          endDate: targetWeekEnd,
+        });
+        
+        totalSales = sales.reduce((sum, sale) => {
+          const value = parseFloat(sale.totalValue);
+          return sum + (isNaN(value) ? 0 : value);
+        }, 0);
       }
 
       const progress = {
@@ -1015,6 +995,141 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error fetching bills from Dapic:', error);
       res.status(500).json({ 
         error: "Failed to fetch bills from Dapic",
+        message: error.message 
+      });
+    }
+  });
+
+  app.post("/api/sales/sync", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || (user.role !== 'administrador' && user.role !== 'gerente')) {
+        return res.status(403).json({ error: "Sem permissão para sincronizar vendas" });
+      }
+
+      const syncSchema = z.object({
+        storeId: z.enum(["saron1", "saron2", "saron3", "todas"]).optional(),
+        startDate: z.string(),
+        endDate: z.string(),
+      });
+
+      const { storeId, startDate, endDate } = syncSchema.parse(req.body);
+
+      let results;
+      if (storeId === "todas" || !storeId) {
+        results = await salesSyncService.syncAllStores(startDate, endDate);
+      } else {
+        const result = await salesSyncService.syncStore(storeId, startDate, endDate);
+        results = [result];
+      }
+
+      const allSuccess = results.every(r => r.success);
+      const totalSales = results.reduce((sum, r) => sum + r.salesCount, 0);
+
+      res.json({
+        success: allSuccess,
+        results,
+        totalSales,
+        message: `Sincronização concluída: ${totalSales} vendas processadas`,
+      });
+    } catch (error: any) {
+      console.error('Error syncing sales:', error);
+      res.status(500).json({ 
+        error: "Erro ao sincronizar vendas",
+        message: error.message 
+      });
+    }
+  });
+
+  app.post("/api/sales/sync/full", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== 'administrador') {
+        return res.status(403).json({ error: "Apenas administradores podem fazer sincronização completa" });
+      }
+
+      console.log('[API] Iniciando sincronização completa do histórico...');
+      
+      const results = await salesSyncService.syncFullHistory();
+      
+      const allSuccess = results.every(r => r.success);
+      const totalSales = results.reduce((sum, r) => sum + r.salesCount, 0);
+
+      res.json({
+        success: allSuccess,
+        results,
+        totalSales,
+        message: `Sincronização completa concluída: ${totalSales} vendas desde janeiro/2024`,
+      });
+    } catch (error: any) {
+      console.error('Error syncing full history:', error);
+      res.status(500).json({ 
+        error: "Erro ao sincronizar histórico completo",
+        message: error.message 
+      });
+    }
+  });
+
+  app.get("/api/sales/sync/status", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const { storeId, startDate, endDate } = req.query;
+      
+      if (!storeId || !startDate || !endDate) {
+        return res.status(400).json({ error: "storeId, startDate e endDate são obrigatórios" });
+      }
+
+      const status = salesSyncService.getSyncStatus(
+        storeId as string,
+        startDate as string,
+        endDate as string
+      );
+
+      res.json(status || { status: 'not_started' });
+    } catch (error: any) {
+      console.error('Error getting sync status:', error);
+      res.status(500).json({ 
+        error: "Erro ao buscar status da sincronização",
+        message: error.message 
+      });
+    }
+  });
+
+  app.get("/api/sales", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const { storeId, sellerName, startDate, endDate } = req.query;
+
+      const sales = await storage.getSales({
+        storeId: storeId as string,
+        sellerName: sellerName as string,
+        startDate: startDate as string,
+        endDate: endDate as string,
+      });
+
+      res.json(sales);
+    } catch (error: any) {
+      console.error('Error fetching sales:', error);
+      res.status(500).json({ 
+        error: "Erro ao buscar vendas",
         message: error.message 
       });
     }
