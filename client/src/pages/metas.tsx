@@ -58,6 +58,8 @@ export default function Metas() {
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const createMutation = useMutation({
