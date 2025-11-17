@@ -18,18 +18,23 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 
 type SortOrder = 'asc' | 'desc' | null;
+type SortField = 'name' | 'code';
 
 export default function Produtos() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>(null);
+  const [sortField, setSortField] = useState<SortField>('name');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100;
 
   const { data, isLoading, error } = useDapicProdutos("todas");
   
-  const productsList = data?.stores
-    ? Object.values(data.stores).flatMap((storeData: any) => storeData?.Dados || [])
-    : [];
+  const productsList = useMemo(() => {
+    if (!data?.stores) return [];
+    
+    const firstStore = Object.keys(data.stores)[0];
+    return firstStore ? (data.stores[firstStore]?.Dados || []) : [];
+  }, [data]);
 
   const filteredProducts = useMemo(() => {
     let filtered = productsList.filter((product: any) =>
@@ -39,16 +44,24 @@ export default function Produtos() {
 
     if (sortOrder) {
       filtered = [...filtered].sort((a, b) => {
-        const nameA = (a.DescricaoFabrica || '').toLowerCase();
-        const nameB = (b.DescricaoFabrica || '').toLowerCase();
-        return sortOrder === 'asc' 
-          ? nameA.localeCompare(nameB)
-          : nameB.localeCompare(nameA);
+        if (sortField === 'name') {
+          const nameA = (a.DescricaoFabrica || '').toLowerCase();
+          const nameB = (b.DescricaoFabrica || '').toLowerCase();
+          return sortOrder === 'asc' 
+            ? nameA.localeCompare(nameB)
+            : nameB.localeCompare(nameA);
+        } else {
+          const codeA = (a.Referencia || '').toLowerCase();
+          const codeB = (b.Referencia || '').toLowerCase();
+          return sortOrder === 'asc' 
+            ? codeA.localeCompare(codeB)
+            : codeB.localeCompare(codeA);
+        }
       });
     }
 
     return filtered;
-  }, [productsList, searchTerm, sortOrder]);
+  }, [productsList, searchTerm, sortOrder, sortField]);
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage) || 1;
   
@@ -70,6 +83,12 @@ export default function Produtos() {
       if (current === 'asc') return 'desc';
       return null;
     });
+    setCurrentPage(1);
+  };
+
+  const changeSortField = (field: SortField) => {
+    setSortField(field);
+    setSortOrder('asc');
     setCurrentPage(1);
   };
 
@@ -109,30 +128,46 @@ export default function Produtos() {
                 data-testid="input-search-products"
               />
             </div>
-            <Button 
-              variant="outline" 
-              onClick={toggleSortOrder}
-              data-testid="button-sort-order"
-            >
-              {sortOrder === null && (
-                <>
-                  <ArrowUpDown className="h-4 w-4 mr-2" />
-                  Ordenar
-                </>
-              )}
-              {sortOrder === 'asc' && (
-                <>
-                  <ArrowUp className="h-4 w-4 mr-2" />
-                  A-Z
-                </>
-              )}
-              {sortOrder === 'desc' && (
-                <>
-                  <ArrowDown className="h-4 w-4 mr-2" />
-                  Z-A
-                </>
-              )}
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant={sortField === 'name' ? 'default' : 'outline'}
+                onClick={() => changeSortField('name')}
+                data-testid="button-sort-by-name"
+              >
+                Nome
+              </Button>
+              <Button 
+                variant={sortField === 'code' ? 'default' : 'outline'}
+                onClick={() => changeSortField('code')}
+                data-testid="button-sort-by-code"
+              >
+                Código
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={toggleSortOrder}
+                data-testid="button-sort-order"
+              >
+                {sortOrder === null && (
+                  <>
+                    <ArrowUpDown className="h-4 w-4 mr-2" />
+                    Ordenar
+                  </>
+                )}
+                {sortOrder === 'asc' && (
+                  <>
+                    <ArrowUp className="h-4 w-4 mr-2" />
+                    A-Z
+                  </>
+                )}
+                {sortOrder === 'desc' && (
+                  <>
+                    <ArrowDown className="h-4 w-4 mr-2" />
+                    Z-A
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
