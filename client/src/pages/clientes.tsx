@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Search, Filter, UserPlus } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Search, Filter } from "lucide-react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { StoreSelector } from "@/components/store-selector";
 import { useDapicClientes } from "@/hooks/use-dapic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -21,15 +20,12 @@ import { AlertCircle } from "lucide-react";
 
 export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStore, setSelectedStore] = useState("saron1");
 
-  const { data, isLoading, error } = useDapicClientes(selectedStore);
-
-  const isConsolidated = selectedStore === "todas";
+  const { data, isLoading, error } = useDapicClientes("todas");
   
-  const clientsList = isConsolidated && data?.stores
-    ? Object.values(data.stores).flatMap((storeData: any) => storeData?.Resultado || [])
-    : (data?.Resultado || []);
+  const clientsList = data?.stores
+    ? Object.values(data.stores).flatMap((storeData: any) => storeData?.Dados || [])
+    : [];
 
   const filteredClients = clientsList.filter((client: any) =>
     (client.Nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -44,9 +40,8 @@ export default function Clientes() {
           <h1 className="text-3xl font-display font-semibold text-foreground" data-testid="text-page-title">
             Clientes
           </h1>
-          <p className="text-muted-foreground mt-1">Gerencie seus clientes do Dapic</p>
+          <p className="text-muted-foreground mt-1">Base unificada de clientes ({clientsList.length.toLocaleString('pt-BR')} registros)</p>
         </div>
-        <StoreSelector value={selectedStore} onChange={setSelectedStore} />
       </div>
 
       {error && (

@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { Search, Filter, Package } from "lucide-react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useState, useMemo, useEffect } from "react";
+import { Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,29 +12,66 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { StoreSelector } from "@/components/store-selector";
 import { useDapicProdutos } from "@/hooks/use-dapic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import { parseBrazilianCurrency, formatBrazilianCurrency } from "@/lib/currency";
+
+type SortOrder = 'asc' | 'desc' | null;
 
 export default function Produtos() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStore, setSelectedStore] = useState("saron1");
+  const [sortOrder, setSortOrder] = useState<SortOrder>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 100;
 
-  const { data, isLoading, error } = useDapicProdutos(selectedStore);
-
-  const isConsolidated = selectedStore === "todas";
+  const { data, isLoading, error } = useDapicProdutos("todas");
   
-  const productsList = isConsolidated && data?.stores
+  const productsList = data?.stores
     ? Object.values(data.stores).flatMap((storeData: any) => storeData?.Dados || [])
-    : (data?.Dados || []);
+    : [];
 
-  const filteredProducts = productsList.filter((product: any) =>
-    (product.Descricao || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (product.Codigo || '').toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredProducts = useMemo(() => {
+    let filtered = productsList.filter((product: any) =>
+      (product.DescricaoFabrica || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.Referencia || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    if (sortOrder) {
+      filtered = [...filtered].sort((a, b) => {
+        const nameA = (a.DescricaoFabrica || '').toLowerCase();
+        const nameB = (b.DescricaoFabrica || '').toLowerCase();
+        return sortOrder === 'asc' 
+          ? nameA.localeCompare(nameB)
+          : nameB.localeCompare(nameA);
+      });
+    }
+
+    return filtered;
+  }, [productsList, searchTerm, sortOrder]);
+
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage) || 1;
+  
+  useEffect(() => {
+    if (currentPage > totalPages && filteredProducts.length > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages, filteredProducts.length]);
+
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedProducts = filteredProducts.slice(
+    (safePage - 1) * itemsPerPage,
+    safePage * itemsPerPage
   );
+
+  const toggleSortOrder = () => {
+    setSortOrder(current => {
+      if (current === null) return 'asc';
+      if (current === 'asc') return 'desc';
+      return null;
+    });
+    setCurrentPage(1);
+  };
 
   return (
     <div className="space-y-6">
@@ -43,9 +80,8 @@ export default function Produtos() {
           <h1 className="text-3xl font-display font-semibold text-foreground" data-testid="text-page-title">
             Produtos e Estoque
           </h1>
-          <p className="text-muted-foreground mt-1">Gerencie o catálogo de produtos do Dapic</p>
+          <p className="text-muted-foreground mt-1">Catálogo unificado de produtos ({productsList.length.toLocaleString('pt-BR')} itens)</p>
         </div>
-        <StoreSelector value={selectedStore} onChange={setSelectedStore} />
       </div>
 
       {error && (
@@ -63,15 +99,39 @@ export default function Produtos() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por nome ou código..."
+                placeholder="Buscar por nome ou referência..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="pl-10"
                 data-testid="input-search-products"
               />
             </div>
-            <Button variant="outline" size="icon" data-testid="button-filter">
-              <Filter className="h-4 w-4" />
+            <Button 
+              variant="outline" 
+              onClick={toggleSortOrder}
+              data-testid="button-sort-order"
+            >
+              {sortOrder === null && (
+                <>
+                  <ArrowUpDown className="h-4 w-4 mr-2" />
+                  Ordenar
+                </>
+              )}
+              {sortOrder === 'asc' && (
+                <>
+                  <ArrowUp className="h-4 w-4 mr-2" />
+                  A-Z
+                </>
+              )}
+              {sortOrder === 'desc' && (
+                <>
+                  <ArrowDown className="h-4 w-4 mr-2" />
+                  Z-A
+                </>
+              )}
             </Button>
           </div>
         </CardHeader>
@@ -90,30 +150,25 @@ export default function Produtos() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Produto</TableHead>
                   <TableHead>Referência</TableHead>
-                  <TableHead className="text-right">Estoque</TableHead>
-                  <TableHead className="text-right">Preço</TableHead>
+                  <TableHead>Produto</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead className="text-right">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredProducts.map((product: any, index: number) => {
-                  const productId = product.Id || product.Codigo || index;
-                  const stockQuantity = product.Estoque || product.EstoqueAtual || 0;
+                {paginatedProducts.map((product: any, index: number) => {
+                  const productId = product.Id || product.Referencia || index;
                   
                   return (
                     <TableRow key={productId} className="hover-elevate" data-testid={`row-product-${productId}`}>
-                      <TableCell className="font-mono text-sm">{product.Codigo || '-'}</TableCell>
-                      <TableCell className="font-medium">{product.Descricao || 'Produto sem descrição'}</TableCell>
-                      <TableCell className="text-muted-foreground">{product.Referencia || '-'}</TableCell>
+                      <TableCell className="font-mono text-sm">{product.Referencia || '-'}</TableCell>
+                      <TableCell className="font-medium">{product.DescricaoFabrica || 'Produto sem descrição'}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{product.DescricaoTipoProduto || '-'}</TableCell>
                       <TableCell className="text-right">
-                        <Badge variant={stockQuantity < 15 ? "destructive" : "secondary"}>
-                          {stockQuantity} un.
+                        <Badge variant={product.Status === 'Ativo' ? "default" : "secondary"}>
+                          {product.Status || 'Desconhecido'}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        R$ {formatBrazilianCurrency(parseBrazilianCurrency(product.PrecoVenda))}
                       </TableCell>
                     </TableRow>
                   );
@@ -122,6 +177,36 @@ export default function Produtos() {
             </Table>
           )}
         </CardContent>
+        {filteredProducts.length > 0 && (
+          <CardFooter className="flex items-center justify-between border-t pt-4">
+            <div className="text-sm text-muted-foreground" data-testid="text-pagination-info">
+              Exibindo {((safePage - 1) * itemsPerPage) + 1}-{Math.min(safePage * itemsPerPage, filteredProducts.length)} de {filteredProducts.length.toLocaleString('pt-BR')} produtos
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={safePage === 1}
+                data-testid="button-prev-page"
+              >
+                Anterior
+              </Button>
+              <div className="text-sm font-medium" data-testid="text-page-number">
+                Página {safePage} de {totalPages}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+                data-testid="button-next-page"
+              >
+                Próxima
+              </Button>
+            </div>
+          </CardFooter>
+        )}
       </Card>
     </div>
   );

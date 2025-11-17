@@ -28,9 +28,16 @@ const STORES: Record<string, StoreCredentials> = {
   },
 };
 
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
 class DapicService {
   private accessTokens: Map<string, string> = new Map();
   private tokenExpirations: Map<string, number> = new Map();
+  private cache: Map<string, CacheEntry<any>> = new Map();
+  private readonly CACHE_TTL = 5 * 60 * 1000;
 
   constructor() {
     const missingStores: string[] = [];
@@ -43,6 +50,33 @@ class DapicService {
     if (missingStores.length > 0) {
       console.warn(`Dapic credentials not configured for stores: ${missingStores.join(', ')}`);
     }
+  }
+
+  private getCachedData<T>(cacheKey: string): T | null {
+    const entry = this.cache.get(cacheKey);
+    if (!entry) return null;
+    
+    const now = Date.now();
+    if (now - entry.timestamp > this.CACHE_TTL) {
+      this.cache.delete(cacheKey);
+      return null;
+    }
+    
+    console.log(`Cache hit for ${cacheKey}`);
+    return entry.data as T;
+  }
+
+  private setCachedData<T>(cacheKey: string, data: T): void {
+    this.cache.set(cacheKey, {
+      data,
+      timestamp: Date.now(),
+    });
+    console.log(`Cached data for ${cacheKey}`);
+  }
+
+  public clearCache(): void {
+    this.cache.clear();
+    console.log('Cache cleared');
   }
 
   async getAccessToken(storeId: string): Promise<string> {
@@ -132,23 +166,27 @@ class DapicService {
     // Clientes são compartilhados entre todas as lojas no Dapic
     // Para "todas", buscar de uma loja e replicar resultado para todas (evita chamadas duplicadas)
     if (storeId === 'todas') {
+      const cacheKey = `clientes:todas`;
+      const cached = this.getCachedData<any>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
       const availableStores = this.getAvailableStores();
       if (availableStores.length === 0) {
         return { data: {}, errors: { todas: 'Nenhuma loja configurada' } };
       }
       
-      // Tentar buscar de cada loja até conseguir
       let canonicalData: any = null;
       const errors: Record<string, string> = {};
       
-      // Remover Pagina do params para forçar paginação automática completa
       const paramsWithoutPagina = params ? { ...params } : {};
       delete paramsWithoutPagina.Pagina;
       
       for (const store of availableStores) {
         try {
           canonicalData = await this.getClientes(store, paramsWithoutPagina);
-          break; // Sucesso, não precisa tentar outras lojas
+          break;
         } catch (error: any) {
           errors[store] = error.message || 'Erro ao buscar clientes';
         }
@@ -158,14 +196,14 @@ class DapicService {
         return { data: {}, errors };
       }
       
-      // Replicar dados para todas as lojas disponíveis (manter contrato de resposta)
       const data: Record<string, any> = {};
       for (const store of availableStores) {
-        data[store] = canonicalData;
+        data[store] = JSON.parse(JSON.stringify(canonicalData));
       }
       
-      // Preservar erros de lojas que falharam antes de conseguir sucesso
-      return { data, errors };
+      const result = { data, errors };
+      this.setCachedData(cacheKey, result);
+      return result;
     }
     
     // Se o usuário especificou uma página, não fazer paginação automática
@@ -294,9 +332,9 @@ class DapicService {
         paginaAtual++;
       }
       
-      // Limite de segurança: não buscar mais de 50 páginas (10.000 registros)
-      if (paginaAtual > 50) {
-        console.log(`Aviso: Limite de paginação atingido (50 páginas = 10.000 registros) para vendas PDV da loja ${storeId}`);
+      // Limite de segurança: não buscar mais de 10 páginas (2.000 registros)
+      if (paginaAtual > 10) {
+        console.log(`Aviso: Limite de paginação atingido (10 páginas = 2.000 registros) para vendas PDV da loja ${storeId}`);
         continuar = false;
       }
     }
@@ -317,23 +355,27 @@ class DapicService {
     // Produtos são compartilhados entre todas as lojas no Dapic
     // Para "todas", buscar de uma loja e replicar resultado para todas (evita chamadas duplicadas)
     if (storeId === 'todas') {
+      const cacheKey = `produtos:todas`;
+      const cached = this.getCachedData<any>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
       const availableStores = this.getAvailableStores();
       if (availableStores.length === 0) {
         return { data: {}, errors: { todas: 'Nenhuma loja configurada' } };
       }
       
-      // Tentar buscar de cada loja até conseguir
       let canonicalData: any = null;
       const errors: Record<string, string> = {};
       
-      // Remover Pagina do params para forçar paginação automática completa
       const paramsWithoutPagina = params ? { ...params } : {};
       delete paramsWithoutPagina.Pagina;
       
       for (const store of availableStores) {
         try {
           canonicalData = await this.getProdutos(store, paramsWithoutPagina);
-          break; // Sucesso, não precisa tentar outras lojas
+          break;
         } catch (error: any) {
           errors[store] = error.message || 'Erro ao buscar produtos';
         }
@@ -343,14 +385,14 @@ class DapicService {
         return { data: {}, errors };
       }
       
-      // Replicar dados para todas as lojas disponíveis (manter contrato de resposta)
       const data: Record<string, any> = {};
       for (const store of availableStores) {
-        data[store] = canonicalData;
+        data[store] = JSON.parse(JSON.stringify(canonicalData));
       }
       
-      // Preservar erros de lojas que falharam antes de conseguir sucesso
-      return { data, errors };
+      const result = { data, errors };
+      this.setCachedData(cacheKey, result);
+      return result;
     }
     
     // Se o usuário especificou uma página, não fazer paginação automática

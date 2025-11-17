@@ -643,10 +643,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { DataInicial, DataFinal, FiltrarPor, Status, Pagina, RegistrosPorPagina } = req.query;
       
       const today = new Date();
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(today.getDate() - 30);
       const formatDate = (date: Date) => date.toISOString().split('T')[0];
       
       const result = await dapicService.getVendasPDV(storeId, {
-        DataInicial: (DataInicial as string) || "2020-01-01",
+        DataInicial: (DataInicial as string) || formatDate(thirtyDaysAgo),
         DataFinal: (DataFinal as string) || formatDate(today),
         FiltrarPor: (FiltrarPor as string) || '0',
         Status: (Status as string) || '1',
