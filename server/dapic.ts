@@ -239,9 +239,9 @@ class DapicService {
         paginaAtual++;
       }
       
-      // Limite de segurança: não buscar mais de 100 páginas (20.000 registros)
-      if (paginaAtual > 100) {
-        console.log(`Aviso: Limite de paginação atingido (100 páginas) para clientes`);
+      // Limite de segurança: não buscar mais de 20 páginas (4.000 registros)
+      if (paginaAtual > 20) {
+        console.log(`Aviso: Limite de paginação atingido (20 páginas = 4.000 registros) para clientes`);
         continuar = false;
       }
     }
@@ -428,9 +428,9 @@ class DapicService {
         paginaAtual++;
       }
       
-      // Limite de segurança: não buscar mais de 10 páginas (2.000 registros)
-      if (paginaAtual > 10) {
-        console.log(`Aviso: Limite de paginação atingido (10 páginas) para produtos`);
+      // Limite de segurança: não buscar mais de 5 páginas (1.000 registros)
+      if (paginaAtual > 5) {
+        console.log(`Aviso: Limite de paginação atingido (5 páginas = 1.000 registros) para produtos`);
         continuar = false;
       }
     }
