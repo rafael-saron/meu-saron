@@ -58,7 +58,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-6 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <img src={logoUrl} alt="Saron" className="h-10 w-auto dark:invert dark:brightness-0 dark:contrast-200" />
+          <img src={logoUrl} alt="Saron" className="h-16 w-auto dark:invert dark:brightness-0 dark:contrast-200" />
         </div>
       </SidebarHeader>
 
