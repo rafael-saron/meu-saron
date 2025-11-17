@@ -20,9 +20,9 @@ The system is built with a modern stack:
 
 **UI/UX Decisions:**
 - **Color Scheme**: Primary colors are medium green (HSL 142° 55% 45%) along with white, black, and green accents.
-- **Logo**: The Saron logo is displayed on the login screen.
+- **Logo**: The Saron logo is displayed on the login screen and sidebar, with automatic white/inverted version in dark mode using CSS filters (`dark:invert dark:brightness-0 dark:contrast-200`).
 - **Fonts**: Inter for body text and Poppins for titles.
-- **Dark Mode**: Full support with a toggle.
+- **Dark Mode**: Full support with a toggle, including logo inversion for visibility.
 - **Components**: Shadcn/UI is used extensively, with custom color theming applied via `index.css`.
 - **Dashboard Optimization**: Features an optimized dashboard with a tabbed architecture for on-demand data loading (Resumo, Análises, Dados Completos) to improve performance.
 
@@ -33,6 +33,13 @@ The system is built with a modern stack:
 - **Real-time Chat**: WhatsApp-style chat with unread message counts and real-time updates via WebSockets.
 - **Anonymous Messaging**: Allows employees to send anonymous messages, with administrators retaining visibility of the sender's identity.
 - **User Management**: Comprehensive CRUD operations for users, including profile picture uploads, password resets by admins, and soft deletion.
+- **User Profile Page**: Complete profile management at `/perfil` with:
+  - Shadcn Form + useForm + zod validation for all forms
+  - Avatar upload with per-user directory isolation (`/uploads/avatars/{userId}/`)
+  - Password change with current password verification
+  - Session-based authorization (users can only edit their own profiles)
+  - Form reset after successful updates to prevent stale dirty state
+  - All inputs have data-testid attributes for testing
 - **Data Normalization**: Robust currency normalization for Dapic data to handle various input formats.
 
 **System Design Choices:**
@@ -46,6 +53,11 @@ The system is built with a modern stack:
 - **Consolidated Data Loading**: When viewing "Todas as Lojas", the `/api/dapic/todas/vendaspdv` endpoint fetches data from all three stores in parallel with pagination (up to 50 pages per store = 30,000 records total). This can take 2+ minutes to complete.
 - **Chart Rendering Behavior**: Charts in the "Análises" tab may show loading placeholders while consolidated data is being fetched. Individual store views (Saron 1, 2, or 3) load significantly faster.
 - **API Response Format**: All consolidated endpoints (`/api/dapic/todas/*`) return `{ stores: { [storeId]: data }, errors: { [storeId]: error } }` format for consistency.
+- **Optimized Data Loading**: Dashboard uses tab-based conditional data fetching:
+  - "Resumo" tab: Only loads sales data (fastest)
+  - "Análises" tab: Loads sales data for charts
+  - "Dados Completos" tab: Loads all data (clients, products, bills) - slowest but most complete
+  - This approach reduces initial page load time and API calls
 
 ## External Dependencies
 - **Dapic ERP API**:
