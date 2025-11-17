@@ -156,8 +156,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/users", async (req, res) => {
     try {
-      const validatedData = insertUserSchema.parse(req.body);
-      const newUser = await storage.createUser(validatedData);
+      const createSchema = insertUserSchema.extend({
+        bonusPercentageAchieved: z.coerce.number().min(0).max(100).nullable().optional(),
+        bonusPercentageNotAchieved: z.coerce.number().min(0).max(100).nullable().optional(),
+      });
+      
+      const parsedData = createSchema.parse(req.body);
+      
+      // Convert bonus percentages to strings for storage
+      const dataForStorage: any = { ...parsedData };
+      if (parsedData.bonusPercentageAchieved !== null && parsedData.bonusPercentageAchieved !== undefined) {
+        dataForStorage.bonusPercentageAchieved = parsedData.bonusPercentageAchieved.toFixed(2);
+      }
+      if (parsedData.bonusPercentageNotAchieved !== null && parsedData.bonusPercentageNotAchieved !== undefined) {
+        dataForStorage.bonusPercentageNotAchieved = parsedData.bonusPercentageNotAchieved.toFixed(2);
+      }
+      
+      const newUser = await storage.createUser(dataForStorage);
       res.json(newUser);
     } catch (error: any) {
       console.error('Error creating user:', error);
@@ -178,15 +193,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: z.enum(['administrador', 'gerente', 'vendedor', 'financeiro']).optional(),
         password: z.string().min(6).optional(),
         avatar: z.string().nullable().optional(),
+        bonusPercentageAchieved: z.coerce.number().min(0).max(100).nullable().optional(),
+        bonusPercentageNotAchieved: z.coerce.number().min(0).max(100).nullable().optional(),
       });
       
-      const validatedData = updateSchema.parse(req.body);
+      const parsedData = updateSchema.parse(req.body);
       
-      if (Object.keys(validatedData).length === 0) {
+      if (Object.keys(parsedData).length === 0) {
         return res.status(400).json({ error: "No valid fields to update" });
       }
       
-      const updatedUser = await storage.updateUser(id, validatedData);
+      // Convert bonus percentages to strings for storage
+      const dataForStorage: Partial<typeof parsedData> = { ...parsedData };
+      if (parsedData.bonusPercentageAchieved !== null && parsedData.bonusPercentageAchieved !== undefined) {
+        dataForStorage.bonusPercentageAchieved = parsedData.bonusPercentageAchieved.toFixed(2) as any;
+      }
+      if (parsedData.bonusPercentageNotAchieved !== null && parsedData.bonusPercentageNotAchieved !== undefined) {
+        dataForStorage.bonusPercentageNotAchieved = parsedData.bonusPercentageNotAchieved.toFixed(2) as any;
+      }
+      
+      const updatedUser = await storage.updateUser(id, dataForStorage);
       if (!updatedUser) {
         return res.status(404).json({ error: "User not found" });
       }

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Filter } from "lucide-react";
+import { Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 
+type SortOrder = 'asc' | 'desc' | null;
+
 export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortOrder, setSortOrder] = useState<SortOrder>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100;
 
@@ -30,14 +33,26 @@ export default function Clientes() {
     : (data?.Resultado || []);
 
   const filteredClients = useMemo(() => {
-    return clientsList.filter((client: any) =>
+    let filtered = clientsList.filter((client: any) =>
       (client.Nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (client.Email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (client.NomeFantasia || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (client.CPF || '').includes(searchTerm) ||
       (client.CNPJ || '').includes(searchTerm)
     );
-  }, [clientsList, searchTerm]);
+
+    if (sortOrder) {
+      filtered = [...filtered].sort((a, b) => {
+        const nameA = (a.Nome || a.NomeFantasia || '').toLowerCase();
+        const nameB = (b.Nome || b.NomeFantasia || '').toLowerCase();
+        return sortOrder === 'asc' 
+          ? nameA.localeCompare(nameB)
+          : nameB.localeCompare(nameA);
+      });
+    }
+
+    return filtered;
+  }, [clientsList, searchTerm, sortOrder]);
 
   const totalPages = Math.ceil(filteredClients.length / itemsPerPage) || 1;
   
@@ -52,6 +67,15 @@ export default function Clientes() {
     (safePage - 1) * itemsPerPage,
     safePage * itemsPerPage
   );
+
+  const toggleSortOrder = () => {
+    setSortOrder(current => {
+      if (current === null) return 'asc';
+      if (current === 'asc') return 'desc';
+      return null;
+    });
+    setCurrentPage(1);
+  };
 
   return (
     <div className="space-y-6">
@@ -89,8 +113,29 @@ export default function Clientes() {
                 data-testid="input-search-clients"
               />
             </div>
-            <Button variant="outline" size="icon" data-testid="button-filter">
-              <Filter className="h-4 w-4" />
+            <Button 
+              variant="outline" 
+              onClick={toggleSortOrder}
+              data-testid="button-sort-name-order"
+            >
+              {sortOrder === null && (
+                <>
+                  <ArrowUpDown className="h-4 w-4 mr-2" />
+                  Ordenar
+                </>
+              )}
+              {sortOrder === 'asc' && (
+                <>
+                  <ArrowUp className="h-4 w-4 mr-2" />
+                  A-Z
+                </>
+              )}
+              {sortOrder === 'desc' && (
+                <>
+                  <ArrowDown className="h-4 w-4 mr-2" />
+                  Z-A
+                </>
+              )}
             </Button>
           </div>
         </CardHeader>

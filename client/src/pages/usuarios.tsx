@@ -52,6 +52,8 @@ const userFormSchema = z.object({
   fullName: z.string().min(3, "Nome completo obrigatório"),
   role: z.enum(["administrador", "gerente", "vendedor", "financeiro"]),
   cpf: z.string().optional(),
+  bonusPercentageAchieved: z.string().optional(),
+  bonusPercentageNotAchieved: z.string().optional(),
 });
 
 type UserFormData = z.infer<typeof userFormSchema>;
@@ -93,6 +95,8 @@ export default function Usuarios() {
       fullName: "",
       role: "vendedor",
       cpf: "",
+      bonusPercentageAchieved: "",
+      bonusPercentageNotAchieved: "",
     },
   });
 
@@ -114,6 +118,8 @@ export default function Usuarios() {
         fullName: user.fullName,
         role: user.role as any,
         cpf: "",
+        bonusPercentageAchieved: user.bonusPercentageAchieved || "",
+        bonusPercentageNotAchieved: user.bonusPercentageNotAchieved || "",
       });
     } else {
       setEditingUser(null);
@@ -124,6 +130,8 @@ export default function Usuarios() {
         fullName: "",
         role: "vendedor",
         cpf: "",
+        bonusPercentageAchieved: "",
+        bonusPercentageNotAchieved: "",
       });
     }
     setDialogOpen(true);
@@ -138,6 +146,8 @@ export default function Usuarios() {
             fullName: data.fullName,
             email: data.email,
             role: data.role,
+            bonusPercentageAchieved: data.bonusPercentageAchieved || null,
+            bonusPercentageNotAchieved: data.bonusPercentageNotAchieved || null,
           },
         });
         toast({
@@ -151,6 +161,8 @@ export default function Usuarios() {
           password: data.password || "senha123",
           fullName: data.fullName,
           role: data.role,
+          bonusPercentageAchieved: data.bonusPercentageAchieved || null,
+          bonusPercentageNotAchieved: data.bonusPercentageNotAchieved || null,
         });
         toast({
           title: "Usuário criado",
@@ -439,6 +451,60 @@ export default function Usuarios() {
                   </FormItem>
                 )}
               />
+
+              {form.watch("role") === "vendedor" && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="bonusPercentageAchieved"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>% Bônus (Meta Alcançada)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            placeholder="Ex: 5.00"
+                            {...field}
+                            data-testid="input-bonus-achieved"
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          Percentual de bônus sobre vendas quando a meta é atingida
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="bonusPercentageNotAchieved"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>% Bônus (Meta Não Alcançada)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            placeholder="Ex: 2.50"
+                            {...field}
+                            data-testid="input-bonus-not-achieved"
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          Percentual de bônus sobre vendas quando a meta não é atingida
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
 
               <DialogFooter>
                 <Button

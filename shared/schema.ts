@@ -12,6 +12,8 @@ export const users = pgTable("users", {
   role: text("role").notNull().default("vendedor"),
   storeId: text("store_id"),
   avatar: text("avatar"),
+  bonusPercentageAchieved: decimal("bonus_percentage_achieved", { precision: 5, scale: 2 }),
+  bonusPercentageNotAchieved: decimal("bonus_percentage_not_achieved", { precision: 5, scale: 2 }),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

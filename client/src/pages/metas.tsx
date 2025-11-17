@@ -65,7 +65,7 @@ export default function Metas() {
       return apiRequest("POST", "/api/goals", data);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ 
+      await queryClient.refetchQueries({ 
         predicate: (query) => query.queryKey[0] === "/api/goals" 
       });
       toast({ title: "Meta criada com sucesso" });
@@ -81,7 +81,7 @@ export default function Metas() {
       return apiRequest("DELETE", `/api/goals/${id}`);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ 
+      await queryClient.refetchQueries({ 
         predicate: (query) => query.queryKey[0] === "/api/goals" 
       });
       toast({ title: "Meta excluída com sucesso" });
