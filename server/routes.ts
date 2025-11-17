@@ -14,6 +14,7 @@ import {
   insertAnnouncementSchema,
   insertAnonymousMessageSchema,
   insertUserSchema,
+  insertSalesGoalSchema,
 } from "@shared/schema";
 
 interface WebSocketMessage {
@@ -529,6 +530,198 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to mark message as read" });
+    }
+  });
+
+  app.get("/api/goals", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const { storeId, sellerId, weekStart, weekEnd, type, isActive } = req.query;
+      
+      const goals = await storage.getSalesGoals({
+        storeId: storeId as string | undefined,
+        sellerId: sellerId as string | undefined,
+        weekStart: weekStart as string | undefined,
+        weekEnd: weekEnd as string | undefined,
+        type: type as "individual" | "team" | undefined,
+        isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+      });
+      
+      res.json(goals);
+    } catch (error: any) {
+      console.error('Error fetching goals:', error);
+      res.status(500).json({ 
+        error: "Erro ao buscar metas",
+        message: error.message 
+      });
+    }
+  });
+
+  app.post("/api/goals", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || (user.role !== 'administrador' && user.role !== 'gerente')) {
+        return res.status(403).json({ error: "Sem permissão para criar metas" });
+      }
+
+      const validatedData = insertSalesGoalSchema.parse({
+        ...req.body,
+        createdById: userId,
+      });
+      
+      const newGoal = await storage.createSalesGoal(validatedData);
+      res.json(newGoal);
+    } catch (error: any) {
+      console.error('Error creating goal:', error);
+      res.status(400).json({ 
+        error: "Erro ao criar meta",
+        message: error.message 
+      });
+    }
+  });
+
+  app.patch("/api/goals/:id", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || (user.role !== 'administrador' && user.role !== 'gerente')) {
+        return res.status(403).json({ error: "Sem permissão para atualizar metas" });
+      }
+
+      const { id } = req.params;
+      const updatedGoal = await storage.updateSalesGoal(id, req.body);
+      res.json(updatedGoal);
+    } catch (error: any) {
+      console.error('Error updating goal:', error);
+      res.status(400).json({ 
+        error: "Erro ao atualizar meta",
+        message: error.message 
+      });
+    }
+  });
+
+  app.delete("/api/goals/:id", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || (user.role !== 'administrador' && user.role !== 'gerente')) {
+        return res.status(403).json({ error: "Sem permissão para deletar metas" });
+      }
+
+      const { id } = req.params;
+      await storage.deleteSalesGoal(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Error deleting goal:', error);
+      res.status(500).json({ 
+        error: "Erro ao deletar meta",
+        message: error.message 
+      });
+    }
+  });
+
+  app.get("/api/goals/progress", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const { goalId, storeId, weekStart, weekEnd } = req.query;
+
+      if (!goalId && (!storeId || !weekStart || !weekEnd)) {
+        return res.status(400).json({ 
+          error: "goalId ou (storeId + weekStart + weekEnd) são obrigatórios" 
+        });
+      }
+
+      let goal;
+      if (goalId) {
+        const goals = await storage.getSalesGoals({ id: goalId as string });
+        goal = goals[0];
+        if (!goal) {
+          return res.status(404).json({ error: "Meta não encontrada" });
+        }
+      }
+
+      const targetStoreId = (goalId && goal) ? goal.storeId : (storeId as string);
+      const targetWeekStart = (goalId && goal) ? goal.weekStart : (weekStart as string);
+      const targetWeekEnd = (goalId && goal) ? goal.weekEnd : (weekEnd as string);
+
+      const salesData = await dapicService.getVendasPDV(targetStoreId, {
+        DataInicial: targetWeekStart,
+        DataFinal: targetWeekEnd,
+      }) as any;
+
+      let totalSales = 0;
+      
+      if (targetStoreId === 'todas' && salesData.data) {
+        Object.values(salesData.data).forEach((storeData: any) => {
+          const sales = storeData?.Resultado || storeData?.Dados || [];
+          sales.forEach((sale: any) => {
+            const value = parseFloat(sale.ValorLiquido || sale.ValorTotal || 0);
+            if (!isNaN(value)) {
+              totalSales += value;
+            }
+          });
+        });
+      } else {
+        const sales = salesData?.Resultado || salesData?.Dados || [];
+        if (goal && goal.type === 'individual' && goal.sellerId) {
+          const sellerUser = await storage.getUser(goal.sellerId);
+          sales.forEach((sale: any) => {
+            const salesperson = sale.NomeVendedor || sale.Vendedor;
+            if (salesperson === sellerUser?.fullName) {
+              const value = parseFloat(sale.ValorLiquido || sale.ValorTotal || 0);
+              if (!isNaN(value)) {
+                totalSales += value;
+              }
+            }
+          });
+        } else {
+          sales.forEach((sale: any) => {
+            const value = parseFloat(sale.ValorLiquido || sale.ValorTotal || 0);
+            if (!isNaN(value)) {
+              totalSales += value;
+            }
+          });
+        }
+      }
+
+      const progress = {
+        goalId: goalId || null,
+        storeId: targetStoreId,
+        weekStart: targetWeekStart,
+        weekEnd: targetWeekEnd,
+        targetValue: goal ? parseFloat(goal.targetValue) : null,
+        currentValue: totalSales,
+        percentage: goal ? (totalSales / parseFloat(goal.targetValue)) * 100 : null,
+      };
+
+      res.json(progress);
+    } catch (error: any) {
+      console.error('Error calculating goal progress:', error);
+      res.status(500).json({ 
+        error: "Erro ao calcular progresso da meta",
+        message: error.message 
+      });
     }
   });
 

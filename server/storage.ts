@@ -5,6 +5,7 @@ import {
   scheduleEvents,
   announcements,
   anonymousMessages,
+  salesGoals,
   type User,
   type InsertUser,
   type ChatMessage,
@@ -15,9 +16,11 @@ import {
   type InsertAnnouncement,
   type AnonymousMessage,
   type InsertAnonymousMessage,
+  type SalesGoal,
+  type InsertSalesGoal,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, or, desc, count } from "drizzle-orm";
+import { eq, and, or, desc, count, gte, lte } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -44,6 +47,19 @@ export interface IStorage {
   getAnonymousMessages(): Promise<AnonymousMessage[]>;
   createAnonymousMessage(message: InsertAnonymousMessage): Promise<AnonymousMessage>;
   markAnonymousMessageAsRead(id: string): Promise<void>;
+  
+  getSalesGoals(filters?: {
+    id?: string;
+    storeId?: string;
+    sellerId?: string;
+    weekStart?: string;
+    weekEnd?: string;
+    type?: "individual" | "team";
+    isActive?: boolean;
+  }): Promise<SalesGoal[]>;
+  createSalesGoal(goal: InsertSalesGoal): Promise<SalesGoal>;
+  updateSalesGoal(id: string, goal: Partial<SalesGoal>): Promise<SalesGoal | undefined>;
+  deleteSalesGoal(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -175,6 +191,65 @@ export class DatabaseStorage implements IStorage {
       .update(anonymousMessages)
       .set({ isRead: true })
       .where(eq(anonymousMessages.id, id));
+  }
+
+  async getSalesGoals(filters?: {
+    id?: string;
+    storeId?: string;
+    sellerId?: string;
+    weekStart?: string;
+    weekEnd?: string;
+    type?: "individual" | "team";
+    isActive?: boolean;
+  }): Promise<SalesGoal[]> {
+    let query = db.select().from(salesGoals);
+    const conditions = [];
+
+    if (filters?.id) {
+      conditions.push(eq(salesGoals.id, filters.id));
+    }
+    if (filters?.storeId) {
+      conditions.push(eq(salesGoals.storeId, filters.storeId));
+    }
+    if (filters?.sellerId) {
+      conditions.push(eq(salesGoals.sellerId, filters.sellerId));
+    }
+    if (filters?.weekStart) {
+      conditions.push(gte(salesGoals.weekStart, filters.weekStart));
+    }
+    if (filters?.weekEnd) {
+      conditions.push(lte(salesGoals.weekEnd, filters.weekEnd));
+    }
+    if (filters?.type) {
+      conditions.push(eq(salesGoals.type, filters.type));
+    }
+    if (filters?.isActive !== undefined) {
+      conditions.push(eq(salesGoals.isActive, filters.isActive));
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    return await query.orderBy(desc(salesGoals.createdAt));
+  }
+
+  async createSalesGoal(insertGoal: InsertSalesGoal): Promise<SalesGoal> {
+    const [goal] = await db.insert(salesGoals).values(insertGoal).returning();
+    return goal;
+  }
+
+  async updateSalesGoal(id: string, updateData: Partial<SalesGoal>): Promise<SalesGoal | undefined> {
+    const [goal] = await db
+      .update(salesGoals)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(eq(salesGoals.id, id))
+      .returning();
+    return goal || undefined;
+  }
+
+  async deleteSalesGoal(id: string): Promise<void> {
+    await db.delete(salesGoals).where(eq(salesGoals.id, id));
   }
 }
 
