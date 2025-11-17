@@ -33,7 +33,7 @@ The system is built with a modern stack:
   - **ISO Date Validation**: Frontend and backend validate YYYY-MM-DD format to prevent malformed requests
 
 **Technical Implementations & Feature Specifications:**
-- **Database Schema**: Includes `users` (with roles: administrador, gerente, vendedor, financeiro), `chatMessages`, `scheduleEvents`, `announcements`, `anonymousMessages`, and `salesGoals` (for weekly sales targets).
+- **Database Schema**: Includes `users` (with roles: administrador, gerente, vendedor, financeiro), `chatMessages`, `scheduleEvents`, `announcements`, `anonymousMessages`, `salesGoals` (with period field for weekly/monthly targets), and `userStores` (junction table for manager multi-store assignments).
 - **Authentication**: Complete JWT-based authentication via `express-session` with httpOnly cookies. Role-based access control (RBAC) is implemented for different user types.
 - **Multi-store Support**: Seamless integration with multiple Saron stores (Saron 1, 2, 3) via the Dapic API, with dynamic store selection and consolidated views.
 - **Real-time Chat**: WhatsApp-style chat with unread message counts and real-time updates via WebSockets.
@@ -46,17 +46,27 @@ The system is built with a modern stack:
   - Session-based authorization (users can only edit their own profiles)
   - Form reset after successful updates to prevent stale dirty state
   - All inputs have data-testid attributes for testing
-- **Sales Goals Management** (`/metas`): Complete weekly goals system with:
+- **Sales Goals Management** (`/metas`): Complete weekly/monthly goals system with:
   - **Goal Types**: Individual (per seller) or Team/Conjunta (entire store)
-  - **Weekly Tracking**: Goals are tracked by week start and end dates
+  - **Period Support**: Weekly or Monthly tracking with appropriate date ranges
+  - **Weekly Tracking**: Goals tracked by week start/end dates
+  - **Monthly Tracking**: Goals tracked by month start/end dates with auto-calculation
   - **Individual Goals**: Assign specific targets to individual sellers
-  - **Team Goals**: Collective targets where all sellers contribute
+  - **Team Goals**: Collective targets where all sellers contribute (aggregates entire store sales)
   - **Progress Visualization**: Real-time progress cards with color-coded indicators
   - **Progress Calculation**: API endpoint `/api/goals/progress` calculates sales vs target
+    - **Case-Insensitive Matching**: Sales are matched to sellers using case-insensitive name comparison (fixes Dapic uppercase names)
+    - **Team Goal Aggregation**: Team goals sum ALL store sales, not filtered by seller
   - **Access Control**: Only administrador and gerente can create/modify goals
   - **Integration with Dapic**: Pulls sales data from vendaspdv to calculate progress
   - **Auto-refresh**: Progress updates every 60 seconds
   - **Visual Indicators**: Green (100%+), Yellow (70%+), Orange (40%+), Red (<40%)
+- **Multi-Store Manager Support**:
+  - **Backend Infrastructure**: Complete API endpoints for managing manager store assignments
+  - **User Stores Table**: Junction table linking users to multiple stores
+  - **API Endpoints**: GET/PUT `/api/users/:id/stores` for retrieving and updating store assignments
+  - **Storage Methods**: getUserStores() and setUserStores() for managing many-to-many relationships
+  - **Future UI Enhancement**: Profile/admin pages will support multi-store selection for managers
 - **Data Normalization**: Robust currency normalization for Dapic data to handle various input formats.
 
 **System Design Choices:**
