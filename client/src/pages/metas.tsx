@@ -53,7 +53,7 @@ export default function Metas() {
   const [storeFilter, setStoreFilter] = useState<string>("all");
 
   const { data: goals = [], isLoading } = useQuery<SalesGoal[]>({
-    queryKey: ["/api/goals", { isActive: true }],
+    queryKey: ["/api/goals?isActive=true"],
   });
 
   const { data: users = [] } = useQuery<User[]>({
@@ -66,7 +66,7 @@ export default function Metas() {
     },
     onSuccess: async () => {
       await queryClient.refetchQueries({ 
-        predicate: (query) => query.queryKey[0] === "/api/goals" 
+        queryKey: ["/api/goals?isActive=true"]
       });
       toast({ title: "Meta criada com sucesso" });
       setIsCreateDialogOpen(false);
@@ -82,7 +82,7 @@ export default function Metas() {
     },
     onSuccess: async () => {
       await queryClient.refetchQueries({ 
-        predicate: (query) => query.queryKey[0] === "/api/goals" 
+        queryKey: ["/api/goals?isActive=true"]
       });
       toast({ title: "Meta excluída com sucesso" });
     },

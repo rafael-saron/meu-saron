@@ -141,6 +141,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
 }).extend({
   password: z.string().min(6),
+  storeId: z.enum(["saron1", "saron2", "saron3"]).nullable().optional(),
 });
 
 export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({

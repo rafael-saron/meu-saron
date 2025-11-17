@@ -157,6 +157,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/users", async (req, res) => {
     try {
       const createSchema = insertUserSchema.extend({
+        storeId: z.enum(['saron1', 'saron2', 'saron3']).nullable().optional(),
         bonusPercentageAchieved: z.coerce.number().min(0).max(100).nullable().optional(),
         bonusPercentageNotAchieved: z.coerce.number().min(0).max(100).nullable().optional(),
       });
@@ -191,6 +192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fullName: z.string().min(3).optional(),
         email: z.string().email().optional(),
         role: z.enum(['administrador', 'gerente', 'vendedor', 'financeiro']).optional(),
+        storeId: z.enum(['saron1', 'saron2', 'saron3']).nullable().optional(),
         password: z.string().min(6).optional(),
         avatar: z.string().nullable().optional(),
         bonusPercentageAchieved: z.coerce.number().min(0).max(100).nullable().optional(),

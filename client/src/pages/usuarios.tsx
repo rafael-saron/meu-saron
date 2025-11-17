@@ -51,6 +51,7 @@ const userFormSchema = z.object({
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres").optional(),
   fullName: z.string().min(3, "Nome completo obrigatório"),
   role: z.enum(["administrador", "gerente", "vendedor", "financeiro"]),
+  storeId: z.enum(["saron1", "saron2", "saron3"]).nullable().optional(),
   cpf: z.string().optional(),
   bonusPercentageAchieved: z.string().optional(),
   bonusPercentageNotAchieved: z.string().optional(),
@@ -94,6 +95,7 @@ export default function Usuarios() {
       password: "",
       fullName: "",
       role: "vendedor",
+      storeId: null,
       cpf: "",
       bonusPercentageAchieved: "",
       bonusPercentageNotAchieved: "",
@@ -117,6 +119,7 @@ export default function Usuarios() {
         email: user.email,
         fullName: user.fullName,
         role: user.role as any,
+        storeId: user.storeId as any,
         cpf: "",
         bonusPercentageAchieved: user.bonusPercentageAchieved || "",
         bonusPercentageNotAchieved: user.bonusPercentageNotAchieved || "",
@@ -129,6 +132,7 @@ export default function Usuarios() {
         password: "",
         fullName: "",
         role: "vendedor",
+        storeId: null,
         cpf: "",
         bonusPercentageAchieved: "",
         bonusPercentageNotAchieved: "",
@@ -146,6 +150,7 @@ export default function Usuarios() {
             fullName: data.fullName,
             email: data.email,
             role: data.role,
+            storeId: data.storeId || null,
             bonusPercentageAchieved: data.bonusPercentageAchieved || null,
             bonusPercentageNotAchieved: data.bonusPercentageNotAchieved || null,
           },
@@ -161,6 +166,7 @@ export default function Usuarios() {
           password: data.password || "senha123",
           fullName: data.fullName,
           role: data.role,
+          storeId: data.storeId || null,
           bonusPercentageAchieved: data.bonusPercentageAchieved || null,
           bonusPercentageNotAchieved: data.bonusPercentageNotAchieved || null,
         });
@@ -447,6 +453,35 @@ export default function Usuarios() {
                         <SelectItem value="financeiro">Financeiro</SelectItem>
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="storeId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Loja</FormLabel>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      value={field.value || ""}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-store">
+                          <SelectValue placeholder="Selecione uma loja (opcional)" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="saron1">Saron 1</SelectItem>
+                        <SelectItem value="saron2">Saron 2</SelectItem>
+                        <SelectItem value="saron3">Saron 3</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Configure a loja principal do usuário (vendedores devem ter loja configurada)
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
