@@ -21,7 +21,7 @@ The system is built with a modern stack:
 **UI/UX Decisions:**
 - **Color Scheme**: Primary colors are medium green (HSL 142° 55% 45%) along with white, black, and green accents.
 - **Logo**: The Saron logo is displayed on the login screen and sidebar, with automatic white/inverted version in dark mode using CSS filters (`dark:invert dark:brightness-0 dark:contrast-200`).
-- **Fonts**: Inter for body text, Poppins for titles, and Pacifico (handwriting-style) for "Meu Saron" branding on login screen.
+- **Fonts**: Inter for body text, Poppins for titles, and Dancing Script (delicate handwriting) for "Meu Saron" branding on login screen.
 - **Dark Mode**: Full support with a toggle, including logo inversion for visibility.
 - **Components**: Shadcn/UI is used extensively, with custom color theming applied via `index.css`.
 - **Dashboard Optimization**: Features an optimized dashboard with a tabbed architecture for on-demand data loading (Resumo, Análises, Dados Completos) to improve performance.
@@ -76,6 +76,11 @@ The system is built with a modern stack:
 - **Sales Page (Vendas PDV)**: 
   - Shows last 30 days of sales per store
   - Displays total sales, quantity, and average ticket metrics
+  - Full table with columns: Code, Date, Client, Salesperson, Total Value, Status
+  - Uses `ValorLiquido` field (with fallback to `ValorTotal`) for consistency with dashboard
+  - Robust field fallbacks: supports both `NomeCliente`/`Cliente`, `NomeVendedor`/`Vendedor`, `DataFechamento`/`DataEmissao`/`Data`
+  - Search filter synchronized with display fields for accurate filtering
+  - Nullish coalescing (`??`) used to preserve legitimate zero values
   - Pagination: 50 sales per page
   - Search by customer, code, or salesperson
 
