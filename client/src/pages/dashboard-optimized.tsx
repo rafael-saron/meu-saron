@@ -184,7 +184,7 @@ export default function Dashboard() {
   const metrics = useMemo(() => {
     if (isConsolidated && clientsData?.stores) {
       const totalClients = Object.values(clientsData.stores).reduce((acc: number, storeData: any) => {
-        return acc + (Array.isArray(storeData?.Resultado) ? storeData.Resultado.length : 0);
+        return acc + (Array.isArray(storeData?.Dados) ? storeData.Dados.length : 0);
       }, 0);
 
       const totalSales = Object.values(salesData?.stores || {}).reduce((acc: number, storeData: any) => {

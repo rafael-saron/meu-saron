@@ -52,7 +52,17 @@ The system is built with a modern stack:
 **Known Performance Considerations:**
 - **Consolidated Data Loading**: When viewing "Todas as Lojas", the `/api/dapic/todas/vendaspdv` endpoint fetches data from all three stores in parallel with pagination (up to 50 pages per store = 30,000 records total). This can take 2+ minutes to complete.
 - **Chart Rendering Behavior**: Charts in the "Análises" tab may show loading placeholders while consolidated data is being fetched. Individual store views (Saron 1, 2, or 3) load significantly faster.
-- **API Response Format**: All consolidated endpoints (`/api/dapic/todas/*`) return `{ stores: { [storeId]: data }, errors: { [storeId]: error } }` format for consistency.
+- **API Response Format**: All consolidated endpoints (`/api/dapic/todas/*`) return `{ data: { [storeId]: data }, errors: { [storeId]: error } }` format for consistency.
+- **Shared Data Optimization**: Clients (16,933 total) and products (1,001 total) are shared across all Dapic stores. When requesting `storeId='todas'`, the system:
+  - Fetches complete dataset from one canonical store (with sequential fallback if primary fails)
+  - Forces full auto-pagination (ignores any Pagina param to ensure all records are fetched)
+  - Replicates the canonical data to all store keys to maintain response contract
+  - Preserves errors from failed stores for monitoring and debugging
+  - Avoids redundant API calls while maintaining per-store response structure
+- **Pagination Limits**: Auto-pagination enforced with safety limits to prevent excessive API calls:
+  - Clientes: 100 pages × 200 records = 20,000 max
+  - Produtos: 100 pages × 200 records = 20,000 max (covers all 1,001 products)
+  - VendasPDV: 50 pages × 200 records = 10,000 max per store
 - **Optimized Data Loading**: Dashboard uses tab-based conditional data fetching:
   - "Resumo" tab: Only loads sales data (fastest)
   - "Análises" tab: Loads sales data for charts
