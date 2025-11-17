@@ -30,6 +30,18 @@ The system is built with a modern stack:
   - "Limpar Filtro" button appears when custom dates are active and resets to default 30-day period
   - Custom date filters have precedence over tab-based date presets
 
+**Recent Changes (November 17, 2025):**
+- **Login Font Updated**: Changed "Meu Saron" title from Dancing Script to Poppins Bold for modern, professional appearance
+- **Clientes Page Enhanced**: Added pagination (100 records/page) with navigation controls and document search capability
+- **Date Filters Implemented**: 
+  - Added customizable date range filters to both Dashboard and Vendas PDV pages
+  - CalendarDays icon with data inicial/data final inputs
+  - Debouncing (500ms) prevents excessive API calls during user input
+  - ISO date format validation (YYYY-MM-DD) on frontend and backend
+  - Dashboard "Limpar Filtro" button resets to 30-day default
+  - Custom date filters override tab-based presets
+- **Router Enhancement**: Added explicit `/dashboard` route alongside root route for better navigation
+
 **Technical Implementations & Feature Specifications:**
 - **Database Schema**: Includes `users` (with roles: administrador, gerente, vendedor, financeiro), `chatMessages`, `scheduleEvents`, `announcements`, and `anonymousMessages`.
 - **Authentication**: Complete JWT-based authentication via `express-session` with httpOnly cookies. Role-based access control (RBAC) is implemented for different user types.

@@ -45,10 +45,26 @@ export default function Vendas() {
   
   const [dataInicial, setDataInicial] = useState(format(thirtyDaysAgo, 'yyyy-MM-dd'));
   const [dataFinal, setDataFinal] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [debouncedDataInicial, setDebouncedDataInicial] = useState(format(thirtyDaysAgo, 'yyyy-MM-dd'));
+  const [debouncedDataFinal, setDebouncedDataFinal] = useState(format(new Date(), 'yyyy-MM-dd'));
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedDataInicial(dataInicial);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [dataInicial]);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedDataFinal(dataFinal);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [dataFinal]);
   
   const { data, isLoading, error } = useDapicVendasPDV(selectedStore, {
-    DataInicial: dataInicial,
-    DataFinal: dataFinal,
+    DataInicial: debouncedDataInicial,
+    DataFinal: debouncedDataFinal,
   });
 
   const isConsolidated = selectedStore === "todas";
@@ -196,7 +212,12 @@ export default function Vendas() {
                 <Input
                   type="date"
                   value={dataInicial}
-                  onChange={(e) => setDataInicial(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) {
+                      setDataInicial(value);
+                    }
+                  }}
                   className="w-40"
                   data-testid="input-date-start"
                 />
@@ -204,7 +225,12 @@ export default function Vendas() {
                 <Input
                   type="date"
                   value={dataFinal}
-                  onChange={(e) => setDataFinal(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) {
+                      setDataFinal(value);
+                    }
+                  }}
                   className="w-40"
                   data-testid="input-date-end"
                 />

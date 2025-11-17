@@ -28,6 +28,7 @@ function AuthenticatedRouter() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/dashboard" component={Dashboard} />
       <Route path="/clientes" component={Clientes} />
       <Route path="/vendas" component={Vendas} />
       <Route path="/produtos" component={Produtos} />

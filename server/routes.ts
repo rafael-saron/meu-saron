@@ -647,9 +647,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       thirtyDaysAgo.setDate(today.getDate() - 30);
       const formatDate = (date: Date) => date.toISOString().split('T')[0];
       
+      const validateISODate = (dateStr: string): string => {
+        if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateStr)) {
+          throw new Error(`Invalid date format: ${dateStr}. Expected YYYY-MM-DD.`);
+        }
+        return dateStr;
+      };
+      
+      const dataInicial = DataInicial ? validateISODate(DataInicial as string) : formatDate(thirtyDaysAgo);
+      const dataFinal = DataFinal ? validateISODate(DataFinal as string) : formatDate(today);
+      
       const result = await dapicService.getVendasPDV(storeId, {
-        DataInicial: (DataInicial as string) || formatDate(thirtyDaysAgo),
-        DataFinal: (DataFinal as string) || formatDate(today),
+        DataInicial: dataInicial,
+        DataFinal: dataFinal,
         FiltrarPor: (FiltrarPor as string) || '0',
         Status: (Status as string) || '1',
         Pagina: Pagina ? parseInt(Pagina as string) : 1,

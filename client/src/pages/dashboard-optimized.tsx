@@ -146,6 +146,8 @@ export default function Dashboard() {
   const [customDateFilter, setCustomDateFilter] = useState(false);
   const [dataInicial, setDataInicial] = useState<string>(thirtyDaysAgoStr);
   const [dataFinal, setDataFinal] = useState<string>(todayStr);
+  const [debouncedDataInicial, setDebouncedDataInicial] = useState<string>(thirtyDaysAgoStr);
+  const [debouncedDataFinal, setDebouncedDataFinal] = useState<string>(todayStr);
   
   useEffect(() => {
     if (user && !selectedStore) {
@@ -153,6 +155,20 @@ export default function Dashboard() {
       setSelectedStore(defaultStore);
     }
   }, [user, selectedStore]);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedDataInicial(dataInicial);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [dataInicial]);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedDataFinal(dataFinal);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [dataFinal]);
 
   const enableSalesData = activeTab === "resumo" || activeTab === "analises";
   const enableClientsData = activeTab === "dados-completos";
@@ -162,8 +178,8 @@ export default function Dashboard() {
   const salesQueryParams = useMemo(() => {
     if (customDateFilter) {
       return {
-        DataInicial: dataInicial,
-        DataFinal: dataFinal,
+        DataInicial: debouncedDataInicial,
+        DataFinal: debouncedDataFinal,
         enabled: enableSalesData,
       };
     }
@@ -180,7 +196,7 @@ export default function Dashboard() {
       DataFinal: todayStr,
       enabled: enableSalesData,
     };
-  }, [activeTab, enableSalesData, customDateFilter, dataInicial, dataFinal]);
+  }, [activeTab, enableSalesData, customDateFilter, debouncedDataInicial, debouncedDataFinal]);
 
   const { data: clientsData, isLoading: loadingClients } = useDapicClientes(selectedStore, { enabled: enableClientsData });
   const { data: salesData, isLoading: loadingSales } = useDapicVendasPDV(selectedStore, salesQueryParams);
@@ -314,8 +330,11 @@ export default function Dashboard() {
                   type="date"
                   value={dataInicial}
                   onChange={(e) => {
-                    setDataInicial(e.target.value);
-                    setCustomDateFilter(true);
+                    const value = e.target.value;
+                    if (value && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) {
+                      setDataInicial(value);
+                      setCustomDateFilter(true);
+                    }
                   }}
                   className="w-40"
                   data-testid="input-date-start"
@@ -325,8 +344,11 @@ export default function Dashboard() {
                   type="date"
                   value={dataFinal}
                   onChange={(e) => {
-                    setDataFinal(e.target.value);
-                    setCustomDateFilter(true);
+                    const value = e.target.value;
+                    if (value && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) {
+                      setDataFinal(value);
+                      setCustomDateFilter(true);
+                    }
                   }}
                   className="w-40"
                   data-testid="input-date-end"
