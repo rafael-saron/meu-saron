@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { parseBrazilianCurrency } from "@/lib/currency";
 import { useUser } from "@/lib/user-context";
+import { format } from "date-fns";
 
 function parseBrazilianDate(dateStr: string): Date | null {
   if (!dateStr) return null;
@@ -83,8 +84,25 @@ export default function Dashboard() {
   const enableProductsData = activeTab === "dados-completos";
   const enableBillsData = activeTab === "dados-completos";
 
+  const salesQueryParams = useMemo(() => {
+    if (activeTab === "resumo") {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      return {
+        DataInicial: format(thirtyDaysAgo, 'yyyy-MM-dd'),
+        DataFinal: format(new Date(), 'yyyy-MM-dd'),
+        enabled: enableSalesData,
+      };
+    }
+    return {
+      DataInicial: '2020-01-01',
+      DataFinal: format(new Date(), 'yyyy-MM-dd'),
+      enabled: enableSalesData,
+    };
+  }, [activeTab, enableSalesData]);
+
   const { data: clientsData, isLoading: loadingClients } = useDapicClientes(selectedStore, { enabled: enableClientsData });
-  const { data: salesData, isLoading: loadingSales } = useDapicVendasPDV(selectedStore, { enabled: enableSalesData });
+  const { data: salesData, isLoading: loadingSales } = useDapicVendasPDV(selectedStore, salesQueryParams);
   const { data: productsData, isLoading: loadingProducts } = useDapicProdutos(selectedStore, { enabled: enableProductsData });
   const { data: billsData, isLoading: loadingBills } = useDapicContasPagar(selectedStore, { enabled: enableBillsData });
 

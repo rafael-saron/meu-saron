@@ -80,7 +80,7 @@ export default function Login() {
               data-testid="img-logo-saron"
             />
           </div>
-          <CardTitle className="text-2xl font-bold font-['Poppins']">
+          <CardTitle className="text-3xl font-['Pacifico'] text-primary">
             Meu Saron
           </CardTitle>
           <CardDescription>

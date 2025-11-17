@@ -21,10 +21,11 @@ The system is built with a modern stack:
 **UI/UX Decisions:**
 - **Color Scheme**: Primary colors are medium green (HSL 142° 55% 45%) along with white, black, and green accents.
 - **Logo**: The Saron logo is displayed on the login screen and sidebar, with automatic white/inverted version in dark mode using CSS filters (`dark:invert dark:brightness-0 dark:contrast-200`).
-- **Fonts**: Inter for body text and Poppins for titles.
+- **Fonts**: Inter for body text, Poppins for titles, and Pacifico (handwriting-style) for "Meu Saron" branding on login screen.
 - **Dark Mode**: Full support with a toggle, including logo inversion for visibility.
 - **Components**: Shadcn/UI is used extensively, with custom color theming applied via `index.css`.
 - **Dashboard Optimization**: Features an optimized dashboard with a tabbed architecture for on-demand data loading (Resumo, Análises, Dados Completos) to improve performance.
+  - **Data Time Windows**: "Resumo" tab shows last 30 days only; "Análises" and "Dados Completos" tabs show all historical data (since 2020).
 
 **Technical Implementations & Feature Specifications:**
 - **Database Schema**: Includes `users` (with roles: administrador, gerente, vendedor, financeiro), `chatMessages`, `scheduleEvents`, `announcements`, and `anonymousMessages`.
@@ -60,14 +61,23 @@ The system is built with a modern stack:
   - Preserves errors from failed stores for monitoring and debugging
   - Avoids redundant API calls while maintaining per-store response structure
 - **Pagination Limits**: Auto-pagination enforced with safety limits to prevent excessive API calls:
-  - Clientes: 100 pages × 200 records = 20,000 max
-  - Produtos: 100 pages × 200 records = 20,000 max (covers all 1,001 products)
-  - VendasPDV: 50 pages × 200 records = 10,000 max per store
+  - Clientes: 20 pages × 200 records = 4,000 max
+  - Produtos: 5 pages × 200 records = 1,000 max (covers all 1,001 products)
+  - VendasPDV: 10 pages × 200 records = 2,000 max per store
 - **Optimized Data Loading**: Dashboard uses tab-based conditional data fetching:
-  - "Resumo" tab: Only loads sales data (fastest)
-  - "Análises" tab: Loads sales data for charts
-  - "Dados Completos" tab: Loads all data (clients, products, bills) - slowest but most complete
+  - "Resumo" tab: Only loads sales data from last 30 days (fastest)
+  - "Análises" tab: Loads all historical sales data for comprehensive charts
+  - "Dados Completos" tab: Loads all data (clients, products, bills, historical sales) - slowest but most complete
   - This approach reduces initial page load time and API calls
+- **Products Page**: 
+  - Shared data across all stores (no duplicate products)
+  - Sort by name OR code with A-Z/Z-A toggle
+  - Pagination: 100 products per page
+- **Sales Page (Vendas PDV)**: 
+  - Shows last 30 days of sales per store
+  - Displays total sales, quantity, and average ticket metrics
+  - Pagination: 50 sales per page
+  - Search by customer, code, or salesperson
 
 ## External Dependencies
 - **Dapic ERP API**:
