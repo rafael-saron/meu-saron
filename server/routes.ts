@@ -241,6 +241,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+  
+  app.get("/api/users/:id/stores", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const stores = await storage.getUserStores(id);
+      res.json(stores);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to get user stores", message: error.message });
+    }
+  });
+  
+  app.put("/api/users/:id/stores", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { storeIds } = req.body;
+      
+      if (!Array.isArray(storeIds)) {
+        return res.status(400).json({ error: "storeIds must be an array" });
+      }
+      
+      await storage.setUserStores(id, storeIds);
+      const updatedStores = await storage.getUserStores(id);
+      res.json(updatedStores);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to set user stores", message: error.message });
+    }
+  });
 
   app.patch("/api/users/:id/password", async (req, res) => {
     try {
@@ -713,17 +740,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         const sales = salesData?.Resultado || salesData?.Dados || [];
         if (goal && goal.type === 'individual' && goal.sellerId) {
+          // Individual goal: only count sales for the specific seller
           const sellerUser = await storage.getUser(goal.sellerId);
+          const sellerFullNameLower = sellerUser?.fullName?.toLowerCase();
           sales.forEach((sale: any) => {
-            const salesperson = sale.NomeVendedor || sale.Vendedor;
-            if (salesperson === sellerUser?.fullName) {
+            const salesperson = (sale.NomeVendedor || sale.Vendedor || '').toLowerCase();
+            if (salesperson === sellerFullNameLower) {
               const value = parseFloat(sale.ValorLiquido || sale.ValorTotal || 0);
               if (!isNaN(value)) {
                 totalSales += value;
               }
             }
           });
+        } else if (goal && goal.type === 'team') {
+          // Team goal: sum ALL sales from the store
+          sales.forEach((sale: any) => {
+            const value = parseFloat(sale.ValorLiquido || sale.ValorTotal || 0);
+            if (!isNaN(value)) {
+              totalSales += value;
+            }
+          });
         } else {
+          // Fallback: sum all sales
           sales.forEach((sale: any) => {
             const value = parseFloat(sale.ValorLiquido || sale.ValorTotal || 0);
             if (!isNaN(value)) {

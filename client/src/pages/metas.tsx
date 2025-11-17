@@ -32,7 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { Target, Plus, Pencil, Trash2, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { format, startOfWeek, endOfWeek, addWeeks } from "date-fns";
+import { format, startOfWeek, endOfWeek, addWeeks, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { SalesGoal, User } from "@shared/schema";
 
@@ -268,6 +268,7 @@ function GoalForm({
   isLoading: boolean;
 }) {
   const [type, setType] = useState<"individual" | "team">("team");
+  const [period, setPeriod] = useState<"weekly" | "monthly">("weekly");
   const [storeId, setStoreId] = useState("saron1");
   const [sellerId, setSellerId] = useState("");
   const [targetValue, setTargetValue] = useState("");
@@ -275,6 +276,8 @@ function GoalForm({
   const today = new Date();
   const weekStart = startOfWeek(today, { weekStartsOn: 0 });
   const weekEnd = endOfWeek(today, { weekStartsOn: 0 });
+  const monthStart = startOfMonth(today);
+  const monthEnd = endOfMonth(today);
   
   const [weekStartDate, setWeekStartDate] = useState(format(weekStart, 'yyyy-MM-dd'));
   const [weekEndDate, setWeekEndDate] = useState(format(weekEnd, 'yyyy-MM-dd'));
@@ -284,6 +287,17 @@ function GoalForm({
   useEffect(() => {
     setSellerId("");
   }, [storeId]);
+  
+  useEffect(() => {
+    const today = new Date();
+    if (period === "weekly") {
+      setWeekStartDate(format(startOfWeek(today, { weekStartsOn: 0 }), 'yyyy-MM-dd'));
+      setWeekEndDate(format(endOfWeek(today, { weekStartsOn: 0 }), 'yyyy-MM-dd'));
+    } else {
+      setWeekStartDate(format(startOfMonth(today), 'yyyy-MM-dd'));
+      setWeekEndDate(format(endOfMonth(today), 'yyyy-MM-dd'));
+    }
+  }, [period]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -294,6 +308,7 @@ function GoalForm({
 
     onSubmit({
       type,
+      period,
       storeId,
       sellerId: type === "individual" ? sellerId : null,
       weekStart: weekStartDate,
@@ -314,6 +329,19 @@ function GoalForm({
           <SelectContent>
             <SelectItem value="team">Conjunta (Loja)</SelectItem>
             <SelectItem value="individual">Individual (Vendedor)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label>Período</Label>
+        <Select value={period} onValueChange={(value: any) => setPeriod(value)}>
+          <SelectTrigger data-testid="select-goal-period">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="weekly">Semanal</SelectItem>
+            <SelectItem value="monthly">Mensal</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -358,7 +386,7 @@ function GoalForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label>Início da Semana</Label>
+          <Label>Início {period === "weekly" ? "da Semana" : "do Mês"}</Label>
           <Input
             type="date"
             value={weekStartDate}
@@ -368,7 +396,7 @@ function GoalForm({
           />
         </div>
         <div>
-          <Label>Fim da Semana</Label>
+          <Label>Fim {period === "weekly" ? "da Semana" : "do Mês"}</Label>
           <Input
             type="date"
             value={weekEndDate}

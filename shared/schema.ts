@@ -61,6 +61,7 @@ export const anonymousMessages = pgTable("anonymous_messages", {
 export const salesGoals = pgTable("sales_goals", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   type: text("type").notNull(),
+  period: text("period").notNull().default("weekly"),
   storeId: text("store_id").notNull(),
   sellerId: varchar("seller_id").references(() => users.id),
   weekStart: date("week_start").notNull(),
@@ -72,6 +73,13 @@ export const salesGoals = pgTable("sales_goals", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const userStores = pgTable("user_stores", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  storeId: text("store_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   sentMessages: many(chatMessages, { relationName: "sentMessages" }),
   receivedMessages: many(chatMessages, { relationName: "receivedMessages" }),
@@ -81,6 +89,14 @@ export const usersRelations = relations(users, ({ many }) => ({
   anonymousMessages: many(anonymousMessages),
   salesGoals: many(salesGoals, { relationName: "sellerGoals" }),
   createdGoals: many(salesGoals, { relationName: "createdGoals" }),
+  userStores: many(userStores),
+}));
+
+export const userStoresRelations = relations(userStores, ({ one }) => ({
+  user: one(users, {
+    fields: [userStores.userId],
+    references: [users.id],
+  }),
 }));
 
 export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
@@ -173,12 +189,20 @@ export const insertSalesGoalSchema = createInsertSchema(salesGoals).omit({
   updatedAt: true,
 }).extend({
   type: z.enum(["individual", "team"]),
+  period: z.enum(["weekly", "monthly"]).default("weekly"),
   storeId: z.enum(["saron1", "saron2", "saron3"]),
   targetValue: z.string().or(z.number()).transform((val) => String(val)),
 });
 
+export const insertUserStoreSchema = createInsertSchema(userStores).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UserStore = typeof userStores.$inferSelect;
+export type InsertUserStore = z.infer<typeof insertUserStoreSchema>;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
 export type ScheduleEvent = typeof scheduleEvents.$inferSelect;

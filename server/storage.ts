@@ -6,6 +6,7 @@ import {
   announcements,
   anonymousMessages,
   salesGoals,
+  userStores,
   type User,
   type InsertUser,
   type ChatMessage,
@@ -18,6 +19,8 @@ import {
   type InsertAnonymousMessage,
   type SalesGoal,
   type InsertSalesGoal,
+  type UserStore,
+  type InsertUserStore,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, desc, count, gte, lte } from "drizzle-orm";
@@ -60,6 +63,9 @@ export interface IStorage {
   createSalesGoal(goal: InsertSalesGoal): Promise<SalesGoal>;
   updateSalesGoal(id: string, goal: Partial<SalesGoal>): Promise<SalesGoal | undefined>;
   deleteSalesGoal(id: string): Promise<void>;
+  
+  getUserStores(userId: string): Promise<UserStore[]>;
+  setUserStores(userId: string, storeIds: string[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -250,6 +256,22 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSalesGoal(id: string): Promise<void> {
     await db.delete(salesGoals).where(eq(salesGoals.id, id));
+  }
+  
+  async getUserStores(userId: string): Promise<UserStore[]> {
+    return await db.select().from(userStores).where(eq(userStores.userId, userId));
+  }
+  
+  async setUserStores(userId: string, storeIds: string[]): Promise<void> {
+    await db.delete(userStores).where(eq(userStores.userId, userId));
+    
+    if (storeIds.length > 0) {
+      const values = storeIds.map(storeId => ({
+        userId,
+        storeId,
+      }));
+      await db.insert(userStores).values(values);
+    }
   }
 }
 
