@@ -34,8 +34,8 @@ export default function ContasPagar() {
   const isConsolidated = selectedStore === "todas";
   
   const billsList = isConsolidated && data?.stores
-    ? Object.values(data.stores).flatMap((storeData: any) => storeData?.Resultado || [])
-    : (data?.Resultado || []);
+    ? Object.values(data.stores).flatMap((storeData: any) => storeData?.Resultado || storeData?.Dados || [])
+    : (data?.Resultado || data?.Dados || []);
 
   const filteredBills = billsList.filter((bill: any) =>
     (bill.Historico || '').toLowerCase().includes(searchTerm.toLowerCase()) ||

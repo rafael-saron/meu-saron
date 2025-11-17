@@ -452,9 +452,9 @@ class DapicService {
     RegistrosPorPagina?: number;
   }) {
     if (storeId === 'todas') {
-      return this.makeRequestAllStores('/v1/contas-pagar', params);
+      return this.makeRequestAllStores('/v1/contaspagar', params);
     }
-    return this.makeRequest(storeId, '/v1/contas-pagar', params);
+    return this.makeRequest(storeId, '/v1/contaspagar', params);
   }
 
   getAvailableStores(): string[] {
