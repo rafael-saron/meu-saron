@@ -29,11 +29,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Target, Plus, Pencil, Trash2, TrendingUp } from "lucide-react";
+import { Target, Plus, Pencil, Trash2, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { SalesGoal, User } from "@shared/schema";
+
+interface GoalProgress {
+  goalId: string | null;
+  storeId: string;
+  weekStart: string;
+  weekEnd: string;
+  targetValue: number | null;
+  currentValue: number;
+  percentage: number | null;
+}
 
 export default function Metas() {
   const { toast } = useToast();
@@ -145,6 +156,23 @@ export default function Metas() {
           </Select>
         </div>
       </div>
+
+      {filteredGoals.length > 0 && (
+        <div>
+          <h2 className="text-xl font-semibold text-foreground mb-4">Progresso das Metas</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredGoals.map((goal) => (
+              <GoalProgressCard
+                key={goal.id}
+                goal={goal}
+                users={users}
+                getStoreLabel={getStoreLabel}
+                getWeekLabel={getWeekLabel}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -355,5 +383,98 @@ function GoalForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+function GoalProgressCard({ 
+  goal, 
+  users, 
+  getStoreLabel, 
+  getWeekLabel 
+}: { 
+  goal: SalesGoal; 
+  users: User[]; 
+  getStoreLabel: (storeId: string) => string; 
+  getWeekLabel: (weekStart: string, weekEnd: string) => string;
+}) {
+  const { data: progress, isLoading } = useQuery<GoalProgress>({
+    queryKey: ["/api/goals/progress", { goalId: goal.id }],
+    refetchInterval: 60000,
+  });
+
+  const seller = goal.sellerId ? users.find(u => u.id === goal.sellerId) : null;
+  const percentage = progress?.percentage || 0;
+  const cappedPercentage = Math.min(percentage, 100);
+
+  const getProgressIcon = () => {
+    if (percentage >= 100) return <TrendingUp className="h-5 w-5 text-green-500" />;
+    if (percentage >= 70) return <TrendingUp className="h-5 w-5 text-yellow-500" />;
+    if (percentage >= 40) return <Minus className="h-5 w-5 text-orange-500" />;
+    return <TrendingDown className="h-5 w-5 text-red-500" />;
+  };
+
+  const getProgressColor = () => {
+    if (percentage >= 100) return "text-green-600 dark:text-green-400";
+    if (percentage >= 70) return "text-yellow-600 dark:text-yellow-400";
+    if (percentage >= 40) return "text-orange-600 dark:text-orange-400";
+    return "text-red-600 dark:text-red-400";
+  };
+
+  return (
+    <Card data-testid={`card-progress-${goal.id}`}>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              {getStoreLabel(goal.storeId)}
+              <Badge variant={goal.type === "individual" ? "default" : "secondary"} className="text-xs">
+                {goal.type === "individual" ? "Individual" : "Conjunta"}
+              </Badge>
+            </CardTitle>
+            {seller && (
+              <p className="text-sm text-muted-foreground mt-1">{seller.fullName}</p>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              {getWeekLabel(goal.weekStart, goal.weekEnd)}
+            </p>
+          </div>
+          {!isLoading && getProgressIcon()}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="text-center py-4 text-sm text-muted-foreground">
+            Carregando progresso...
+          </div>
+        ) : (
+          <>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-muted-foreground">Progresso</span>
+                <span className={`text-sm font-bold ${getProgressColor()}`}>
+                  {percentage.toFixed(1)}%
+                </span>
+              </div>
+              <Progress value={cappedPercentage} className="h-2" />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Realizado</p>
+                <p className="text-sm font-semibold text-foreground">
+                  R$ {(progress?.currentValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Meta</p>
+                <p className="text-sm font-semibold text-primary">
+                  R$ {parseFloat(goal.targetValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }

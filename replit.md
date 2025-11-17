@@ -33,7 +33,7 @@ The system is built with a modern stack:
   - **ISO Date Validation**: Frontend and backend validate YYYY-MM-DD format to prevent malformed requests
 
 **Technical Implementations & Feature Specifications:**
-- **Database Schema**: Includes `users` (with roles: administrador, gerente, vendedor, financeiro), `chatMessages`, `scheduleEvents`, `announcements`, and `anonymousMessages`.
+- **Database Schema**: Includes `users` (with roles: administrador, gerente, vendedor, financeiro), `chatMessages`, `scheduleEvents`, `announcements`, `anonymousMessages`, and `salesGoals` (for weekly sales targets).
 - **Authentication**: Complete JWT-based authentication via `express-session` with httpOnly cookies. Role-based access control (RBAC) is implemented for different user types.
 - **Multi-store Support**: Seamless integration with multiple Saron stores (Saron 1, 2, 3) via the Dapic API, with dynamic store selection and consolidated views.
 - **Real-time Chat**: WhatsApp-style chat with unread message counts and real-time updates via WebSockets.
@@ -46,6 +46,17 @@ The system is built with a modern stack:
   - Session-based authorization (users can only edit their own profiles)
   - Form reset after successful updates to prevent stale dirty state
   - All inputs have data-testid attributes for testing
+- **Sales Goals Management** (`/metas`): Complete weekly goals system with:
+  - **Goal Types**: Individual (per seller) or Team/Conjunta (entire store)
+  - **Weekly Tracking**: Goals are tracked by week start and end dates
+  - **Individual Goals**: Assign specific targets to individual sellers
+  - **Team Goals**: Collective targets where all sellers contribute
+  - **Progress Visualization**: Real-time progress cards with color-coded indicators
+  - **Progress Calculation**: API endpoint `/api/goals/progress` calculates sales vs target
+  - **Access Control**: Only administrador and gerente can create/modify goals
+  - **Integration with Dapic**: Pulls sales data from vendaspdv to calculate progress
+  - **Auto-refresh**: Progress updates every 60 seconds
+  - **Visual Indicators**: Green (100%+), Yellow (70%+), Orange (40%+), Red (<40%)
 - **Data Normalization**: Robust currency normalization for Dapic data to handle various input formats.
 
 **System Design Choices:**
