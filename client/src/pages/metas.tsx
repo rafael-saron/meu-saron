@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,8 +64,10 @@ export default function Metas() {
     mutationFn: async (data: any) => {
       return apiRequest("POST", "/api/goals", data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/goals"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ 
+        predicate: (query) => query.queryKey[0] === "/api/goals" 
+      });
       toast({ title: "Meta criada com sucesso" });
       setIsCreateDialogOpen(false);
     },
@@ -78,8 +80,10 @@ export default function Metas() {
     mutationFn: async (id: string) => {
       return apiRequest("DELETE", `/api/goals/${id}`);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/goals"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ 
+        predicate: (query) => query.queryKey[0] === "/api/goals" 
+      });
       toast({ title: "Meta excluída com sucesso" });
     },
     onError: () => {
@@ -275,6 +279,10 @@ function GoalForm({
 
   const sellers = users.filter(u => u.role === "vendedor" && u.storeId === storeId);
 
+  useEffect(() => {
+    setSellerId("");
+  }, [storeId]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -325,16 +333,22 @@ function GoalForm({
       {type === "individual" && (
         <div>
           <Label>Vendedor</Label>
-          <Select value={sellerId} onValueChange={setSellerId} required>
+          <Select key={storeId} value={sellerId} onValueChange={setSellerId} required>
             <SelectTrigger data-testid="select-seller">
               <SelectValue placeholder="Selecione um vendedor" />
             </SelectTrigger>
             <SelectContent>
-              {sellers.map((seller) => (
-                <SelectItem key={seller.id} value={seller.id}>
-                  {seller.fullName}
-                </SelectItem>
-              ))}
+              {sellers.length === 0 ? (
+                <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                  Nenhum vendedor encontrado
+                </div>
+              ) : (
+                sellers.map((seller) => (
+                  <SelectItem key={seller.id} value={seller.id}>
+                    {seller.fullName}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
         </div>
