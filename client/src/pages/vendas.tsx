@@ -68,7 +68,7 @@ export default function Vendas() {
 
   const stats = useMemo(() => {
     const total = salesList.reduce((sum: number, sale: any) => 
-      sum + normalizeValue(sale.ValorTotal), 0
+      sum + normalizeValue(sale.ValorLiquido ?? sale.ValorTotal), 0
     );
     const count = salesList.length;
     const average = count > 0 ? total / count : 0;
@@ -83,9 +83,9 @@ export default function Vendas() {
   const filteredSales = useMemo(() => {
     return salesList.filter((sale: any) => {
       const searchLower = searchTerm.toLowerCase();
-      const nomeCliente = (sale.NomeCliente || '').toLowerCase();
+      const nomeCliente = (sale.NomeCliente || sale.Cliente || '').toLowerCase();
       const codigo = (sale.Codigo || '').toString().toLowerCase();
-      const vendedor = (sale.NomeVendedor || '').toLowerCase();
+      const vendedor = (sale.NomeVendedor || sale.Vendedor || '').toLowerCase();
       
       return nomeCliente.includes(searchLower) || 
              codigo.includes(searchLower) ||
@@ -231,18 +231,21 @@ export default function Vendas() {
                   <TableBody>
                     {paginatedSales.map((sale: any, index: number) => {
                       const saleId = sale.Id || sale.Codigo || index;
-                      const valorTotal = normalizeValue(sale.ValorTotal);
+                      const valorTotal = normalizeValue(sale.ValorLiquido ?? sale.ValorTotal);
+                      const dataVenda = sale.DataFechamento || sale.DataEmissao || sale.Data;
+                      const nomeCliente = sale.NomeCliente || sale.Cliente || 'Cliente não informado';
+                      const nomeVendedor = sale.NomeVendedor || sale.Vendedor || '-';
                       
                       return (
                         <TableRow key={saleId} className="hover-elevate" data-testid={`row-sale-${saleId}`}>
                           <TableCell className="font-mono text-sm">{sale.Codigo || '-'}</TableCell>
-                          <TableCell className="text-sm">{formatDate(sale.DataEmissao)}</TableCell>
-                          <TableCell className="font-medium">{sale.NomeCliente || 'Cliente não informado'}</TableCell>
-                          <TableCell className="text-sm">{sale.NomeVendedor || '-'}</TableCell>
+                          <TableCell className="text-sm">{dataVenda ? formatDate(dataVenda) : '-'}</TableCell>
+                          <TableCell className="font-medium">{nomeCliente}</TableCell>
+                          <TableCell className="text-sm">{nomeVendedor}</TableCell>
                           <TableCell className="text-right font-semibold">{formatCurrency(valorTotal)}</TableCell>
                           <TableCell className="text-right">
                             <Badge variant={sale.Status === 'Finalizada' ? 'default' : 'secondary'}>
-                              {sale.Status || 'Pendente'}
+                              {sale.Status || 'Fechada'}
                             </Badge>
                           </TableCell>
                         </TableRow>
