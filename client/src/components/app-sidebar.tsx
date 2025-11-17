@@ -58,7 +58,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-6 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <img src={logoUrl} alt="Saron" className="h-10 w-auto" />
+          <img src={logoUrl} alt="Saron" className="h-10 w-auto dark:invert dark:brightness-0 dark:contrast-200" />
         </div>
       </SidebarHeader>
 
@@ -161,7 +161,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
-        <div className="flex items-center gap-3 mb-3">
+        <Link href="/perfil" className="flex items-center gap-3 mb-3 hover-elevate rounded-md p-2 -m-2 cursor-pointer" data-testid="link-perfil">
           <Avatar className="h-9 w-9">
             <AvatarImage src={user?.avatar || ""} alt={user?.fullName} />
             <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">
@@ -174,7 +174,7 @@ export function AppSidebar() {
               {user ? roleLabels[user.role as keyof typeof roleLabels] : "Vendedor"}
             </p>
           </div>
-        </div>
+        </Link>
         <Button 
           variant="outline" 
           className="w-full justify-start gap-2"

@@ -3,6 +3,9 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { storage } from "./storage";
 import { dapicService } from "./dapic";
 import {
@@ -207,6 +210,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: "Failed to delete user",
         message: error.message 
       });
+    }
+  });
+
+  app.patch("/api/users/:id/password", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { currentPassword, newPassword } = req.body;
+
+      if (!req.session?.userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      if (req.session.userId !== id) {
+        return res.status(403).json({ error: "Não autorizado" });
+      }
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: "Senha atual e nova senha são obrigatórias" });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({ error: "Nova senha deve ter pelo menos 6 caracteres" });
+      }
+
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ error: "Usuário não encontrado" });
+      }
+
+      const isValid = await bcrypt.compare(currentPassword, user.password);
+      if (!isValid) {
+        return res.status(400).json({ error: "Senha atual incorreta" });
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateUser(id, { password: hashedPassword });
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Error updating password:', error);
+      res.status(500).json({ error: "Erro ao atualizar senha" });
+    }
+  });
+
+  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'avatars');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+
+  const avatarStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      const userId = req.params.id;
+      const userDir = path.join(uploadDir, userId);
+      if (!fs.existsSync(userDir)) {
+        fs.mkdirSync(userDir, { recursive: true });
+      }
+      cb(null, userDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, 'avatar-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  });
+
+  const uploadAvatar = multer({
+    storage: avatarStorage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = /jpeg|jpg|png|gif/;
+      const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+      const mimetype = allowedTypes.test(file.mimetype);
+
+      if (mimetype && extname) {
+        return cb(null, true);
+      } else {
+        cb(new Error('Only image files are allowed!'));
+      }
+    }
+  });
+
+  app.post("/api/users/:id/avatar", uploadAvatar.single('avatar'), async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!req.session?.userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      if (req.session.userId !== id) {
+        if (req.file) {
+          fs.unlinkSync(req.file.path);
+        }
+        return res.status(403).json({ error: "Não autorizado" });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({ error: "Nenhum arquivo enviado" });
+      }
+
+      const avatarUrl = `/uploads/avatars/${id}/${req.file.filename}`;
+      const updatedUser = await storage.updateUser(id, { avatar: avatarUrl });
+      
+      if (!updatedUser) {
+        fs.unlinkSync(req.file.path);
+        return res.status(404).json({ error: "Usuário não encontrado" });
+      }
+
+      res.json({ avatar: avatarUrl });
+    } catch (error: any) {
+      console.error('Error uploading avatar:', error);
+      if (req.file) {
+        fs.unlinkSync(req.file.path);
+      }
+      res.status(500).json({ error: "Erro ao fazer upload do avatar" });
     }
   });
 
