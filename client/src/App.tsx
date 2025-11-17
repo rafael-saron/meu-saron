@@ -16,6 +16,7 @@ import Clientes from "@/pages/clientes";
 import Vendas from "@/pages/vendas";
 import Produtos from "@/pages/produtos";
 import ContasPagar from "@/pages/contas-pagar";
+import Metas from "@/pages/metas";
 import Calendario from "@/pages/calendario";
 import Avisos from "@/pages/avisos";
 import Chat from "@/pages/chat";
@@ -33,6 +34,7 @@ function AuthenticatedRouter() {
       <Route path="/vendas" component={Vendas} />
       <Route path="/produtos" component={Produtos} />
       <Route path="/contas-pagar" component={ContasPagar} />
+      <Route path="/metas" component={Metas} />
       <Route path="/calendario" component={Calendario} />
       <Route path="/avisos" component={Avisos} />
       <Route path="/chat" component={Chat} />

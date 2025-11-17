@@ -1,4 +1,4 @@
-import { Home, Users, ShoppingBag, Package, DollarSign, Calendar, Bell, MessageCircle, Send, LayoutDashboard, UserCog, LogOut } from "lucide-react";
+import { Home, Users, ShoppingBag, Package, DollarSign, Calendar, Bell, MessageCircle, Send, LayoutDashboard, UserCog, LogOut, Target } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -25,6 +25,7 @@ const mainMenuItems = [
   { title: "Vendas", url: "/vendas", icon: ShoppingBag },
   { title: "Produtos", url: "/produtos", icon: Package },
   { title: "Contas a Pagar", url: "/contas-pagar", icon: DollarSign },
+  { title: "Metas", url: "/metas", icon: Target },
 ];
 
 const communicationItems = [
