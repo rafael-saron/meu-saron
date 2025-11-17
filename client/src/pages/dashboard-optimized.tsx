@@ -96,12 +96,16 @@ const extractClientsList = (clientsData: any, isConsolidated: boolean): any[] =>
   
   if (isConsolidated && clientsData.stores) {
     return Object.values(clientsData.stores).flatMap((storeData: any) => 
-      Array.isArray(storeData?.Resultado) ? storeData.Resultado : []
+      storeData?.Resultado || storeData?.Dados || []
     );
   }
   
   if (Array.isArray(clientsData?.Resultado)) {
     return clientsData.Resultado;
+  }
+  
+  if (Array.isArray(clientsData?.Dados)) {
+    return clientsData.Dados;
   }
   
   return [];
@@ -128,12 +132,16 @@ const extractBillsList = (billsData: any, isConsolidated: boolean): any[] => {
   
   if (isConsolidated && billsData.stores) {
     return Object.values(billsData.stores).flatMap((storeData: any) => 
-      Array.isArray(storeData?.Resultado) ? storeData.Resultado : []
+      storeData?.Resultado || storeData?.Dados || []
     );
   }
   
   if (Array.isArray(billsData?.Resultado)) {
     return billsData.Resultado;
+  }
+  
+  if (Array.isArray(billsData?.Dados)) {
+    return billsData.Dados;
   }
   
   return [];

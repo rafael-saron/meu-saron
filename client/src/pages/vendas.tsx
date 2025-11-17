@@ -36,7 +36,7 @@ const normalizeValue = (value: any): number => {
 
 export default function Vendas() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStore, setSelectedStore] = useState("saron1");
+  const [selectedStore, setSelectedStore] = useState("todas");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
 
