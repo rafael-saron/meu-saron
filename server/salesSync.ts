@@ -48,9 +48,13 @@ export class SalesSyncService {
       console.log(`[SalesSync] Vendas antigas deletadas para ${storeId}`);
 
       let salesCount = 0;
+      let duplicatesSkipped = 0;
       let page = 1;
       let hasMore = true;
       const maxPages = 100;
+      
+      // Track processed sale codes to avoid duplicates within sync session
+      const processedSaleCodes = new Set<string>();
 
       while (hasMore && page <= maxPages) {
         console.log(`[SalesSync] Buscando página ${page} de vendas do Dapic...`);
@@ -71,8 +75,18 @@ export class SalesSyncService {
 
         for (const dapicSale of salesData) {
           try {
+            const saleCode = String(dapicSale.Codigo || dapicSale.CodigoVenda || '');
+            
+            // Skip if we've already processed this sale code in this sync session
+            if (processedSaleCodes.has(saleCode)) {
+              duplicatesSkipped++;
+              continue;
+            }
+            
+            processedSaleCodes.add(saleCode);
+            
             const sale: InsertSale = {
-              saleCode: String(dapicSale.Codigo || dapicSale.CodigoVenda || ''),
+              saleCode,
               saleDate: dapicSale.DataFechamento || dapicSale.DataEmissao || dapicSale.Data || new Date().toISOString().split('T')[0],
               totalValue: String(dapicSale.ValorLiquido || dapicSale.ValorTotal || 0),
               sellerName: dapicSale.NomeVendedor || dapicSale.Vendedor || 'Sem Vendedor',
@@ -108,6 +122,10 @@ export class SalesSyncService {
         } else {
           page++;
         }
+      }
+      
+      if (duplicatesSkipped > 0) {
+        console.log(`[SalesSync] ${duplicatesSkipped} duplicatas ignoradas`);
       }
 
       console.log(`[SalesSync] Sincronização concluída: ${storeId} - ${salesCount} vendas`);
