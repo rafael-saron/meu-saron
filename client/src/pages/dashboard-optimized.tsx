@@ -242,17 +242,9 @@ export default function Dashboard() {
     totalDays: number;
   }
 
+  const goalsQueryUrl = `/api/goals/dashboard?storeId=${encodeURIComponent(selectedStore || '')}`;
   const { data: dashboardGoals = [], isLoading: loadingGoals } = useQuery<DashboardGoal[]>({
-    queryKey: ["/api/goals/dashboard", selectedStore],
-    queryFn: async () => {
-      const res = await fetch(`/api/goals/dashboard?storeId=${selectedStore}`, {
-        credentials: "include",
-      });
-      if (!res.ok) {
-        throw new Error("Erro ao buscar metas");
-      }
-      return res.json();
-    },
+    queryKey: [goalsQueryUrl],
     enabled: !!selectedStore,
     refetchInterval: 60000,
   });
