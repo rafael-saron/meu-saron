@@ -250,41 +250,43 @@ export default function Dashboard() {
     refetchInterval: 60000,
   });
 
-  const isConsolidated = selectedStore === "todas";
+  interface SalesSummary {
+    today: number;
+    week: number;
+    month: number;
+    todayCount: number;
+    weekCount: number;
+    monthCount: number;
+    periods: {
+      today: string;
+      weekStart: string;
+      weekEnd: string;
+      monthStart: string;
+      monthEnd: string;
+    };
+  }
 
-  // For vendedor role, filter sales by their name
-  const sellerFilter = user?.role === "vendedor" ? user.fullName : undefined;
+  const salesSummaryUrl = `/api/sales/summary?storeId=${encodeURIComponent(selectedStore || '')}`;
+  const { data: salesSummary, isLoading: loadingSalesSummary } = useQuery<SalesSummary>({
+    queryKey: [salesSummaryUrl],
+    enabled: !!selectedStore && activeTab === "resumo",
+    refetchInterval: 60000,
+  });
 
   const periodSales = useMemo(() => {
-    const salesList = extractSalesList(salesData, isConsolidated, sellerFilter);
-    if (salesList.length === 0) return { today: 0, week: 0, month: 0 };
+    if (salesSummary) {
+      return {
+        today: salesSummary.today,
+        week: salesSummary.week,
+        month: salesSummary.month,
+      };
+    }
+    return { today: 0, week: 0, month: 0 };
+  }, [salesSummary]);
 
-    const now = new Date();
-    let today = 0;
-    let week = 0;
-    let month = 0;
+  const isConsolidated = selectedStore === "todas";
 
-    salesList.forEach((sale: any) => {
-      if (sale.DataFechamento) {
-        const saleDate = parseBrazilianDate(sale.DataFechamento);
-        if (saleDate) {
-          const saleValue = typeof sale?.ValorLiquido === 'number' ? sale.ValorLiquido : parseBrazilianCurrency(sale?.ValorLiquido);
-          
-          if (isSameDay(saleDate, now)) {
-            today += saleValue;
-          }
-          if (isInCurrentWeek(saleDate)) {
-            week += saleValue;
-          }
-          if (isInCurrentMonth(saleDate)) {
-            month += saleValue;
-          }
-        }
-      }
-    });
-
-    return { today, week, month };
-  }, [salesData, isConsolidated, sellerFilter]);
+  const sellerFilter = user?.role === "vendedor" ? user.fullName : undefined;
 
   const chartData = useMemo(() => {
     const salesList = extractSalesList(salesData, isConsolidated, sellerFilter);
@@ -437,7 +439,7 @@ export default function Dashboard() {
 
         <TabsContent value="resumo" className="space-y-6">
           <div className="grid gap-4 md:grid-cols-3">
-            {loadingSales ? (
+            {loadingSalesSummary ? (
               <>
                 <Skeleton className="h-32" />
                 <Skeleton className="h-32" />
