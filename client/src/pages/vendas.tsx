@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { StoreSelector } from "@/components/store-selector";
 import { useDapicVendasPDV } from "@/hooks/use-dapic";
+import { useUser } from "@/lib/user-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
@@ -35,6 +36,7 @@ const normalizeValue = (value: any): number => {
 };
 
 export default function Vendas() {
+  const { user } = useUser();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStore, setSelectedStore] = useState("todas");
   const [currentPage, setCurrentPage] = useState(1);
@@ -69,21 +71,33 @@ export default function Vendas() {
 
   const isConsolidated = selectedStore === "todas";
   
+  // For vendedor role, filter sales by their name
+  const sellerFilter = user?.role === "vendedor" ? user.fullName : undefined;
+  
   const salesList = useMemo(() => {
     if (!data) return [];
     
+    let sales: any[] = [];
+    
     if (isConsolidated && data.stores) {
-      return Object.values(data.stores).flatMap((storeData: any) => 
+      sales = Object.values(data.stores).flatMap((storeData: any) => 
         Array.isArray(storeData?.Dados) ? storeData.Dados : []
       );
+    } else if (Array.isArray(data?.Dados)) {
+      sales = data.Dados;
     }
     
-    if (Array.isArray(data?.Dados)) {
-      return data.Dados;
+    // Filter by seller name for vendedor role
+    if (sellerFilter) {
+      const normalizedFilter = sellerFilter.toLowerCase().trim();
+      sales = sales.filter((sale: any) => {
+        const sellerName = (sale.NomeVendedor || sale.Vendedor || '').toLowerCase().trim();
+        return sellerName === normalizedFilter;
+      });
     }
     
-    return [];
-  }, [data, isConsolidated]);
+    return sales;
+  }, [data, isConsolidated, sellerFilter]);
 
   const stats = useMemo(() => {
     const total = salesList.reduce((sum: number, sale: any) => 
@@ -152,6 +166,11 @@ export default function Vendas() {
           <p className="text-muted-foreground mt-1">
             {filteredSales.length.toLocaleString('pt-BR')} vendas
           </p>
+          {user?.role === "vendedor" && (
+            <p className="text-sm text-muted-foreground">
+              Você está visualizando apenas suas vendas
+            </p>
+          )}
         </div>
         <StoreSelector value={selectedStore} onChange={setSelectedStore} />
       </div>

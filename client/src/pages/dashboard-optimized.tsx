@@ -75,20 +75,29 @@ const thirtyDaysAgo = new Date();
 thirtyDaysAgo.setDate(today.getDate() - 30);
 const thirtyDaysAgoStr = format(thirtyDaysAgo, 'yyyy-MM-dd');
 
-const extractSalesList = (salesData: any, isConsolidated: boolean): any[] => {
+const extractSalesList = (salesData: any, isConsolidated: boolean, sellerFilter?: string): any[] => {
   if (!salesData) return [];
   
+  let salesList: any[] = [];
+  
   if (isConsolidated && salesData.stores) {
-    return Object.values(salesData.stores).flatMap((storeData: any) => 
+    salesList = Object.values(salesData.stores).flatMap((storeData: any) => 
       Array.isArray(storeData?.Dados) ? storeData.Dados : []
     );
+  } else if (Array.isArray(salesData?.Dados)) {
+    salesList = salesData.Dados;
   }
   
-  if (Array.isArray(salesData?.Dados)) {
-    return salesData.Dados;
+  // Filter by seller name if provided (for vendedor role)
+  if (sellerFilter) {
+    const normalizedFilter = sellerFilter.toLowerCase().trim();
+    salesList = salesList.filter((sale: any) => {
+      const sellerName = (sale.NomeVendedor || sale.Vendedor || '').toLowerCase().trim();
+      return sellerName === normalizedFilter;
+    });
   }
   
-  return [];
+  return salesList;
 };
 
 const extractClientsList = (clientsData: any, isConsolidated: boolean): any[] => {
@@ -213,8 +222,11 @@ export default function Dashboard() {
 
   const isConsolidated = selectedStore === "todas";
 
+  // For vendedor role, filter sales by their name
+  const sellerFilter = user?.role === "vendedor" ? user.fullName : undefined;
+
   const periodSales = useMemo(() => {
-    const salesList = extractSalesList(salesData, isConsolidated);
+    const salesList = extractSalesList(salesData, isConsolidated, sellerFilter);
     if (salesList.length === 0) return { today: 0, week: 0, month: 0 };
 
     const now = new Date();
@@ -242,10 +254,10 @@ export default function Dashboard() {
     });
 
     return { today, week, month };
-  }, [salesData, isConsolidated]);
+  }, [salesData, isConsolidated, sellerFilter]);
 
   const chartData = useMemo(() => {
-    const salesList = extractSalesList(salesData, isConsolidated);
+    const salesList = extractSalesList(salesData, isConsolidated, sellerFilter);
     if (salesList.length === 0) return [];
 
     const monthlyData: Record<string, number> = {};
@@ -269,10 +281,10 @@ export default function Dashboard() {
         month,
         value: monthlyData[month],
       }));
-  }, [salesData, isConsolidated]);
+  }, [salesData, isConsolidated, sellerFilter]);
 
   const topProductsData = useMemo(() => {
-    const salesList = extractSalesList(salesData, isConsolidated);
+    const salesList = extractSalesList(salesData, isConsolidated, sellerFilter);
     if (salesList.length === 0) return [];
 
     const productCounts: Record<string, number> = {};
@@ -290,11 +302,11 @@ export default function Dashboard() {
       .sort(([, a], [, b]) => b - a)
       .slice(0, 5)
       .map(([name, sales]) => ({ name, sales }));
-  }, [salesData, isConsolidated]);
+  }, [salesData, isConsolidated, sellerFilter]);
 
   const metrics = useMemo(() => {
     const clients = extractClientsList(clientsData, isConsolidated);
-    const sales = extractSalesList(salesData, isConsolidated);
+    const sales = extractSalesList(salesData, isConsolidated, sellerFilter);
     const products = extractProductsList(productsData, isConsolidated);
     const bills = extractBillsList(billsData, isConsolidated);
 
@@ -307,7 +319,7 @@ export default function Dashboard() {
       totalProducts: products.length,
       totalBills: bills.reduce((sum: number, bill: any) => sum + parseBrazilianCurrency(bill?.Valor), 0),
     };
-  }, [clientsData, salesData, productsData, billsData, isConsolidated]);
+  }, [clientsData, salesData, productsData, billsData, isConsolidated, sellerFilter]);
 
   const canChangeStore = user?.role === "administrador" && !user?.storeId;
 
@@ -319,7 +331,12 @@ export default function Dashboard() {
             Meu Saron
           </h1>
           <p className="text-muted-foreground mt-1">Visão geral do desempenho</p>
-          {!canChangeStore && user?.storeId && (
+          {user?.role === "vendedor" && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Você está visualizando apenas suas vendas
+            </p>
+          )}
+          {user?.role !== "vendedor" && !canChangeStore && user?.storeId && (
             <p className="text-sm text-muted-foreground mt-1">
               Você está visualizando dados da sua loja: {user.storeId}
             </p>
