@@ -19,13 +19,13 @@ import { useUser } from "@/lib/user-context";
 import { useUnreadCount } from "@/hooks/use-unread-count";
 import logoUrl from "@assets/Logo Saron_1763050286995.png";
 
-const mainMenuItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Clientes", url: "/clientes", icon: Users },
-  { title: "Vendas", url: "/vendas", icon: ShoppingBag },
-  { title: "Produtos", url: "/produtos", icon: Package },
-  { title: "Contas a Pagar", url: "/contas-pagar", icon: DollarSign },
-  { title: "Metas", url: "/metas", icon: Target },
+const allMenuItems = [
+  { title: "Dashboard", url: "/", icon: LayoutDashboard, roles: ["administrador", "gerente", "vendedor", "financeiro"] },
+  { title: "Clientes", url: "/clientes", icon: Users, roles: ["administrador", "gerente"] },
+  { title: "Vendas", url: "/vendas", icon: ShoppingBag, roles: ["administrador", "gerente"] },
+  { title: "Produtos", url: "/produtos", icon: Package, roles: ["administrador", "gerente"] },
+  { title: "Contas a Pagar", url: "/contas-pagar", icon: DollarSign, roles: ["administrador", "financeiro"] },
+  { title: "Metas", url: "/metas", icon: Target, roles: ["administrador", "gerente"] },
 ];
 
 const communicationItems = [
@@ -54,6 +54,9 @@ export function AppSidebar() {
     vendedor: "Vendedor",
     financeiro: "Financeiro",
   };
+
+  const userRole = user?.role || "vendedor";
+  const mainMenuItems = allMenuItems.filter(item => item.roles.includes(userRole));
 
   return (
     <Sidebar>

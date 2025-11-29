@@ -282,7 +282,7 @@ function GoalForm({
   const [weekStartDate, setWeekStartDate] = useState(format(weekStart, 'yyyy-MM-dd'));
   const [weekEndDate, setWeekEndDate] = useState(format(weekEnd, 'yyyy-MM-dd'));
 
-  const sellers = users.filter(u => u.role === "vendedor" && u.storeId === storeId);
+  const sellers = users.filter(u => (u.role === "vendedor" || u.role === "gerente") && u.storeId === storeId);
 
   useEffect(() => {
     setSellerId("");
@@ -362,20 +362,20 @@ function GoalForm({
 
       {type === "individual" && (
         <div>
-          <Label>Vendedor</Label>
+          <Label>Colaborador</Label>
           <Select key={storeId} value={sellerId} onValueChange={setSellerId} required>
             <SelectTrigger data-testid="select-seller">
-              <SelectValue placeholder="Selecione um vendedor" />
+              <SelectValue placeholder="Selecione um colaborador" />
             </SelectTrigger>
             <SelectContent>
               {sellers.length === 0 ? (
                 <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                  Nenhum vendedor encontrado
+                  Nenhum colaborador encontrado
                 </div>
               ) : (
                 sellers.map((seller) => (
                   <SelectItem key={seller.id} value={seller.id}>
-                    {seller.fullName}
+                    {seller.fullName} ({seller.role === "gerente" ? "Gerente" : "Vendedor"})
                   </SelectItem>
                 ))
               )}

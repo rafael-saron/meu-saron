@@ -1,10 +1,13 @@
 import { useState, useMemo, useEffect } from "react";
-import { Users, ShoppingBag, Package, DollarSign, Calendar, TrendingUp, CalendarDays } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Users, ShoppingBag, Package, DollarSign, Calendar, TrendingUp, CalendarDays, Target } from "lucide-react";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 import { StoreSelector } from "@/components/store-selector";
 import { useDapicClientes, useDapicVendasPDV, useDapicProdutos, useDapicContasPagar } from "@/hooks/use-dapic";
@@ -14,6 +17,7 @@ import { AlertCircle } from "lucide-react";
 import { parseBrazilianCurrency } from "@/lib/currency";
 import { useUser } from "@/lib/user-context";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 function parseBrazilianDate(dateStr: string): Date | null {
   if (!dateStr) return null;
@@ -219,6 +223,30 @@ export default function Dashboard() {
   const { data: salesData, isLoading: loadingSales } = useDapicVendasPDV(selectedStore, salesQueryParams);
   const { data: productsData, isLoading: loadingProducts } = useDapicProdutos(selectedStore, { enabled: enableProductsData });
   const { data: billsData, isLoading: loadingBills } = useDapicContasPagar(selectedStore, { enabled: enableBillsData });
+
+  interface DashboardGoal {
+    id: string;
+    storeId: string;
+    type: "individual" | "team";
+    period: "weekly" | "monthly";
+    sellerId: string | null;
+    sellerName: string | null;
+    weekStart: string;
+    weekEnd: string;
+    targetValue: number;
+    currentValue: number;
+    percentage: number;
+    expectedPercentage: number;
+    isOnTrack: boolean;
+    elapsedDays: number;
+    totalDays: number;
+  }
+
+  const { data: dashboardGoals = [], isLoading: loadingGoals } = useQuery<DashboardGoal[]>({
+    queryKey: ["/api/goals/dashboard", selectedStore],
+    enabled: !!selectedStore,
+    refetchInterval: 60000,
+  });
 
   const isConsolidated = selectedStore === "todas";
 
@@ -439,6 +467,86 @@ export default function Dashboard() {
               </>
             )}
           </div>
+
+          {dashboardGoals.length > 0 && (
+            <Card data-testid="card-goals-progress">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg font-display flex items-center gap-2">
+                  <Target className="h-5 w-5 text-primary" />
+                  Progresso das Metas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loadingGoals ? (
+                  <div className="space-y-4">
+                    <Skeleton className="h-16" />
+                    <Skeleton className="h-16" />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {dashboardGoals.map((goal) => {
+                      const storeLabels: Record<string, string> = {
+                        saron1: "Saron 1",
+                        saron2: "Saron 2", 
+                        saron3: "Saron 3",
+                      };
+                      const cappedPercentage = Math.min(goal.percentage, 100);
+                      const formatPeriod = () => {
+                        const start = new Date(goal.weekStart + 'T00:00:00');
+                        const end = new Date(goal.weekEnd + 'T00:00:00');
+                        return `${format(start, 'dd/MM', { locale: ptBR })} - ${format(end, 'dd/MM', { locale: ptBR })}`;
+                      };
+                      
+                      return (
+                        <div 
+                          key={goal.id} 
+                          className="p-4 rounded-lg border bg-card"
+                          data-testid={`goal-progress-${goal.id}`}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium text-sm">{storeLabels[goal.storeId] || goal.storeId}</span>
+                                <Badge variant={goal.type === "individual" ? "default" : "secondary"} className="text-xs">
+                                  {goal.type === "individual" ? "Individual" : "Conjunta"}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  {goal.period === "weekly" ? "Semanal" : "Mensal"}
+                                </Badge>
+                              </div>
+                              {goal.sellerName && (
+                                <p className="text-xs text-muted-foreground mt-1">{goal.sellerName}</p>
+                              )}
+                              <p className="text-xs text-muted-foreground">{formatPeriod()}</p>
+                            </div>
+                            <div className="text-right">
+                              <span className={`text-lg font-bold ${goal.isOnTrack ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {goal.percentage.toFixed(1)}%
+                              </span>
+                              <p className="text-xs text-muted-foreground">
+                                Esperado: {goal.expectedPercentage.toFixed(0)}%
+                              </p>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Progress 
+                              value={cappedPercentage} 
+                              className={`h-3 ${goal.isOnTrack ? '[&>div]:bg-green-600 dark:[&>div]:bg-green-500' : '[&>div]:bg-red-600 dark:[&>div]:bg-red-500'}`}
+                            />
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>R$ {goal.currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                              <span>Meta: R$ {goal.targetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Carregamento Otimizado</AlertTitle>

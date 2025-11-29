@@ -775,6 +775,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/goals/dashboard", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "Usuário não encontrado" });
+      }
+
+      const { storeId } = req.query;
+      
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+      
+      const allActiveGoals = await storage.getSalesGoals({ isActive: true });
+      
+      let managerStoreIds: string[] = [];
+      if (user.role === 'gerente') {
+        const userStoresList = await storage.getUserStores(user.id);
+        managerStoreIds = userStoresList.map(us => us.storeId);
+        if (managerStoreIds.length === 0 && user.storeId) {
+          managerStoreIds = [user.storeId];
+        }
+      }
+
+      const relevantGoals = allActiveGoals.filter(goal => {
+        if (todayStr < goal.weekStart) {
+          return false;
+        }
+        
+        if (user.role === 'vendedor') {
+          return goal.type === 'individual' && goal.sellerId === user.id;
+        }
+        
+        if (user.role === 'gerente') {
+          if (storeId && storeId !== 'todas') {
+            return goal.storeId === storeId && managerStoreIds.includes(goal.storeId);
+          }
+          return managerStoreIds.includes(goal.storeId);
+        }
+        
+        if (user.role === 'administrador') {
+          if (storeId && storeId !== 'todas') {
+            return goal.storeId === storeId;
+          }
+          return true;
+        }
+        
+        return false;
+      });
+
+      const goalsWithProgress = await Promise.all(relevantGoals.map(async (goal) => {
+        let totalSales = 0;
+        
+        if (goal.type === 'individual' && goal.sellerId) {
+          const sellerUser = await storage.getUser(goal.sellerId);
+          const sellerName = sellerUser?.fullName;
+          
+          const sales = await storage.getSales({
+            storeId: goal.storeId,
+            sellerName: sellerName,
+            startDate: goal.weekStart,
+            endDate: goal.weekEnd,
+          });
+          
+          totalSales = sales.reduce((sum, sale) => {
+            const value = parseFloat(sale.totalValue);
+            return sum + (isNaN(value) ? 0 : value);
+          }, 0);
+        } else {
+          const sales = await storage.getSales({
+            storeId: goal.storeId,
+            startDate: goal.weekStart,
+            endDate: goal.weekEnd,
+          });
+          
+          totalSales = sales.reduce((sum, sale) => {
+            const value = parseFloat(sale.totalValue);
+            return sum + (isNaN(value) ? 0 : value);
+          }, 0);
+        }
+
+        const targetValue = parseFloat(goal.targetValue);
+        const percentage = targetValue > 0 ? (totalSales / targetValue) * 100 : 0;
+
+        const [startYear, startMonth, startDay] = goal.weekStart.split('-').map(Number);
+        const [endYear, endMonth, endDay] = goal.weekEnd.split('-').map(Number);
+        const startDateUtc = Date.UTC(startYear, startMonth - 1, startDay);
+        const endDateUtc = Date.UTC(endYear, endMonth - 1, endDay);
+        
+        const nowUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        const dayMs = 1000 * 60 * 60 * 24;
+        const totalDays = Math.max(1, Math.floor((endDateUtc - startDateUtc) / dayMs) + 1);
+        
+        let elapsedDays: number;
+        let expectedPercentage: number;
+        
+        if (nowUtc < startDateUtc) {
+          elapsedDays = 0;
+          expectedPercentage = 0;
+        } else if (nowUtc > endDateUtc) {
+          elapsedDays = totalDays;
+          expectedPercentage = 100;
+        } else {
+          elapsedDays = Math.floor((nowUtc - startDateUtc) / dayMs) + 1;
+          expectedPercentage = (elapsedDays / totalDays) * 100;
+        }
+        
+        const isOnTrack = percentage >= expectedPercentage;
+
+        const sellerUser = goal.sellerId ? await storage.getUser(goal.sellerId) : null;
+
+        return {
+          id: goal.id,
+          storeId: goal.storeId,
+          type: goal.type,
+          period: goal.period,
+          sellerId: goal.sellerId,
+          sellerName: sellerUser?.fullName || null,
+          weekStart: goal.weekStart,
+          weekEnd: goal.weekEnd,
+          targetValue,
+          currentValue: totalSales,
+          percentage,
+          expectedPercentage,
+          isOnTrack,
+          elapsedDays,
+          totalDays,
+        };
+      }));
+
+      res.json(goalsWithProgress);
+    } catch (error: any) {
+      console.error('Error fetching dashboard goals:', error);
+      res.status(500).json({ 
+        error: "Erro ao buscar metas do dashboard",
+        message: error.message 
+      });
+    }
+  });
+
   app.get("/api/dapic/stores", async (req, res) => {
     try {
       const stores = dapicService.getAvailableStores();

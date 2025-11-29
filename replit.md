@@ -67,12 +67,18 @@ The system is built with a modern stack:
     - `getSales`: Filtered queries with case-insensitive seller matching
     - `deleteSalesByPeriod`: Clean refresh for monthly sync
   - **Data Mapping**: Robust field mapping from Dapic (Codigo, ValorLiquido, NomeVendedor, etc.) to local schema
+- **Role-Based Menu Access Control**:
+  - **Vendedores**: Only see "Dashboard" in Gestão menu
+  - **Gerentes**: See "Dashboard", "Clientes", "Vendas", "Produtos", "Metas" in Gestão menu
+  - **Administradores**: Full access to all menus including "Contas a Pagar" and "Usuários"
+  - **Financeiro**: See "Dashboard" and "Contas a Pagar"
+  - **Communication menus**: All roles have access to Calendário, Avisos, Chat, Mensagem Anônima
 - **Sales Goals Management** (`/metas`): Complete weekly/monthly goals system with:
-  - **Goal Types**: Individual (per seller) or Team/Conjunta (entire store)
+  - **Goal Types**: Individual (per seller/manager) or Team/Conjunta (entire store)
   - **Period Support**: Weekly or Monthly tracking with appropriate date ranges
   - **Weekly Tracking**: Goals tracked by week start/end dates
   - **Monthly Tracking**: Goals tracked by month start/end dates with auto-calculation
-  - **Individual Goals**: Assign specific targets to individual sellers
+  - **Individual Goals**: Assign specific targets to individual sellers OR managers
   - **Team Goals**: Collective targets where all sellers contribute (aggregates entire store sales)
   - **Progress Visualization**: Real-time progress cards with color-coded indicators
   - **Progress Calculation**: API endpoint `/api/goals/progress` calculates sales vs target **using local sales table**
@@ -81,8 +87,19 @@ The system is built with a modern stack:
     - **Multi-Store Support**: Goals for "todas as lojas" aggregate across all stores automatically
     - **Local Data Source**: Queries `sales` table instead of real-time Dapic calls for performance
   - **Access Control**: Only administrador and gerente can create/modify goals
+  - **Manager Goals**: Gerentes can also have individual goals assigned to them (appear in collaborator list)
   - **Auto-refresh**: Progress updates every 60 seconds
-  - **Visual Indicators**: Green (100%+), Yellow (70%+), Orange (40%+), Red (<40%)
+  - **Visual Indicators**: Green (on track), Red (behind expected)
+- **Dashboard Goal Progress Bars** (`/api/goals/dashboard`):
+  - **Role-specific visibility**:
+    - **Vendedores**: See only their personal individual goals
+    - **Gerentes**: See personal goals + store goals (individual and team)
+    - **Administradores**: See all goals, or filtered by store if store is selected
+  - **On-Track Calculation**: Compares actual percentage vs expected percentage based on elapsed days
+  - **Color Coding**: Green if percentage >= expected, Red if percentage < expected
+  - **Expected Percentage**: Calculated as (elapsed days / total days) × 100
+  - **Progress Display**: Shows current value, target value, actual %, and expected %
+  - **Auto-refresh**: Updates every 60 seconds
 - **Multi-Store Manager Support**:
   - **Backend Infrastructure**: Complete API endpoints for managing manager store assignments
   - **User Stores Table**: Junction table linking users to multiple stores
