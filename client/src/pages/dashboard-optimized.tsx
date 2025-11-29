@@ -227,7 +227,7 @@ export default function Dashboard() {
   interface DashboardGoal {
     id: string;
     storeId: string;
-    type: "individual" | "team";
+    type: "individual" | "team" | "aggregated";
     period: "weekly" | "monthly";
     sellerId: string | null;
     sellerName: string | null;
@@ -240,6 +240,7 @@ export default function Dashboard() {
     isOnTrack: boolean;
     elapsedDays: number;
     totalDays: number;
+    goalsCount?: number;
   }
 
   const goalsQueryUrl = `/api/goals/dashboard?storeId=${encodeURIComponent(selectedStore || '')}`;
@@ -490,6 +491,8 @@ export default function Dashboard() {
                         saron1: "Saron 1",
                         saron2: "Saron 2", 
                         saron3: "Saron 3",
+                        "Todas as Lojas": "Todas as Lojas",
+                        "Suas Lojas": "Suas Lojas",
                       };
                       const cappedPercentage = Math.min(goal.percentage, 100);
                       const formatPeriod = () => {
@@ -497,26 +500,51 @@ export default function Dashboard() {
                         const end = new Date(goal.weekEnd + 'T00:00:00');
                         return `${format(start, 'dd/MM', { locale: ptBR })} - ${format(end, 'dd/MM', { locale: ptBR })}`;
                       };
+
+                      const isAggregated = goal.type === 'aggregated';
+                      const periodLabel = goal.period === "weekly" ? "Semanal" : "Mensal";
+                      const typeLabel = isAggregated ? "Progresso Total" : (goal.type === "individual" ? "Individual" : "Conjunta");
                       
                       return (
                         <div 
                           key={goal.id} 
-                          className="p-4 rounded-lg border bg-card"
+                          className={`p-4 rounded-lg border ${isAggregated ? 'bg-primary/5 border-primary/20' : 'bg-card'}`}
                           data-testid={`goal-progress-${goal.id}`}
                         >
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-medium text-sm">{storeLabels[goal.storeId] || goal.storeId}</span>
-                                <Badge variant={goal.type === "individual" ? "default" : "secondary"} className="text-xs">
-                                  {goal.type === "individual" ? "Individual" : "Conjunta"}
-                                </Badge>
-                                <Badge variant="outline" className="text-xs">
-                                  {goal.period === "weekly" ? "Semanal" : "Mensal"}
-                                </Badge>
+                                {isAggregated ? (
+                                  <>
+                                    <span className="font-semibold text-sm text-primary">
+                                      Meta {periodLabel}
+                                    </span>
+                                    <Badge variant="default" className="text-xs bg-primary">
+                                      {typeLabel}
+                                    </Badge>
+                                    {goal.goalsCount && goal.goalsCount > 1 && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {goal.goalsCount} metas
+                                      </Badge>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="font-medium text-sm">{storeLabels[goal.storeId] || goal.storeId}</span>
+                                    <Badge variant={goal.type === "individual" ? "default" : "secondary"} className="text-xs">
+                                      {typeLabel}
+                                    </Badge>
+                                    <Badge variant="outline" className="text-xs">
+                                      {periodLabel}
+                                    </Badge>
+                                  </>
+                                )}
                               </div>
                               {goal.sellerName && (
                                 <p className="text-xs text-muted-foreground mt-1">{goal.sellerName}</p>
+                              )}
+                              {isAggregated && (
+                                <p className="text-xs text-muted-foreground mt-1">{storeLabels[goal.storeId] || goal.storeId}</p>
                               )}
                               <p className="text-xs text-muted-foreground">{formatPeriod()}</p>
                             </div>

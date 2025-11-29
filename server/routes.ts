@@ -791,6 +791,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const now = new Date();
       const todayStr = now.toISOString().split('T')[0];
+      const dayMs = 1000 * 60 * 60 * 24;
+      const nowUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
       
       const allActiveGoals = await storage.getSalesGoals({ isActive: true });
       
@@ -803,76 +805,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const relevantGoals = allActiveGoals.filter(goal => {
-        if (todayStr < goal.weekStart) {
-          return false;
-        }
-        
-        if (user.role === 'vendedor') {
-          return goal.type === 'individual' && goal.sellerId === user.id;
-        }
-        
-        if (user.role === 'gerente') {
+      const currentGoals = allActiveGoals.filter(goal => {
+        return todayStr >= goal.weekStart && todayStr <= goal.weekEnd;
+      });
+
+      if (user.role === 'vendedor') {
+        const vendorGoals = currentGoals.filter(goal => 
+          goal.type === 'individual' && goal.sellerId === user.id
+        );
+
+        const goalsWithProgress = await Promise.all(vendorGoals.map(async (goal) => {
+          const sales = await storage.getSales({
+            storeId: goal.storeId,
+            sellerName: user.fullName,
+            startDate: goal.weekStart,
+            endDate: goal.weekEnd,
+          });
+          
+          const totalSales = sales.reduce((sum, sale) => {
+            const value = parseFloat(sale.totalValue);
+            return sum + (isNaN(value) ? 0 : value);
+          }, 0);
+
+          const targetValue = parseFloat(goal.targetValue);
+          const percentage = targetValue > 0 ? (totalSales / targetValue) * 100 : 0;
+
+          const [startYear, startMonth, startDay] = goal.weekStart.split('-').map(Number);
+          const [endYear, endMonth, endDay] = goal.weekEnd.split('-').map(Number);
+          const startDateUtc = Date.UTC(startYear, startMonth - 1, startDay);
+          const endDateUtc = Date.UTC(endYear, endMonth - 1, endDay);
+          
+          const totalDays = Math.max(1, Math.floor((endDateUtc - startDateUtc) / dayMs) + 1);
+          const elapsedDays = Math.floor((nowUtc - startDateUtc) / dayMs) + 1;
+          const expectedPercentage = (elapsedDays / totalDays) * 100;
+          const isOnTrack = percentage >= expectedPercentage;
+
+          return {
+            id: goal.id,
+            storeId: goal.storeId,
+            type: goal.type,
+            period: goal.period,
+            sellerId: goal.sellerId,
+            sellerName: user.fullName,
+            weekStart: goal.weekStart,
+            weekEnd: goal.weekEnd,
+            targetValue,
+            currentValue: totalSales,
+            percentage,
+            expectedPercentage,
+            isOnTrack,
+            elapsedDays,
+            totalDays,
+          };
+        }));
+
+        return res.json(goalsWithProgress);
+      }
+
+      let relevantGoals = currentGoals;
+      if (user.role === 'gerente') {
+        relevantGoals = currentGoals.filter(goal => {
           if (storeId && storeId !== 'todas') {
             return goal.storeId === storeId && managerStoreIds.includes(goal.storeId);
           }
           return managerStoreIds.includes(goal.storeId);
+        });
+      } else if (user.role === 'administrador') {
+        if (storeId && storeId !== 'todas') {
+          relevantGoals = currentGoals.filter(goal => goal.storeId === storeId);
         }
-        
-        if (user.role === 'administrador') {
-          if (storeId && storeId !== 'todas') {
-            return goal.storeId === storeId;
+      }
+
+      const weeklyGoals = relevantGoals.filter(g => g.period === 'weekly');
+      const monthlyGoals = relevantGoals.filter(g => g.period === 'monthly');
+
+      const calculateAggregatedProgress = async (goals: typeof relevantGoals, periodLabel: string) => {
+        if (goals.length === 0) return null;
+
+        let totalTarget = 0;
+        let totalCurrent = 0;
+        let earliestStart = goals[0].weekStart;
+        let latestEnd = goals[0].weekEnd;
+
+        for (const goal of goals) {
+          totalTarget += parseFloat(goal.targetValue);
+          
+          if (goal.weekStart < earliestStart) earliestStart = goal.weekStart;
+          if (goal.weekEnd > latestEnd) latestEnd = goal.weekEnd;
+
+          if (goal.type === 'individual' && goal.sellerId) {
+            const sellerUser = await storage.getUser(goal.sellerId);
+            const sales = await storage.getSales({
+              storeId: goal.storeId,
+              sellerName: sellerUser?.fullName,
+              startDate: goal.weekStart,
+              endDate: goal.weekEnd,
+            });
+            totalCurrent += sales.reduce((sum, sale) => {
+              const value = parseFloat(sale.totalValue);
+              return sum + (isNaN(value) ? 0 : value);
+            }, 0);
+          } else {
+            const sales = await storage.getSales({
+              storeId: goal.storeId,
+              startDate: goal.weekStart,
+              endDate: goal.weekEnd,
+            });
+            totalCurrent += sales.reduce((sum, sale) => {
+              const value = parseFloat(sale.totalValue);
+              return sum + (isNaN(value) ? 0 : value);
+            }, 0);
           }
-          return true;
-        }
-        
-        return false;
-      });
-
-      const goalsWithProgress = await Promise.all(relevantGoals.map(async (goal) => {
-        let totalSales = 0;
-        
-        if (goal.type === 'individual' && goal.sellerId) {
-          const sellerUser = await storage.getUser(goal.sellerId);
-          const sellerName = sellerUser?.fullName;
-          
-          const sales = await storage.getSales({
-            storeId: goal.storeId,
-            sellerName: sellerName,
-            startDate: goal.weekStart,
-            endDate: goal.weekEnd,
-          });
-          
-          totalSales = sales.reduce((sum, sale) => {
-            const value = parseFloat(sale.totalValue);
-            return sum + (isNaN(value) ? 0 : value);
-          }, 0);
-        } else {
-          const sales = await storage.getSales({
-            storeId: goal.storeId,
-            startDate: goal.weekStart,
-            endDate: goal.weekEnd,
-          });
-          
-          totalSales = sales.reduce((sum, sale) => {
-            const value = parseFloat(sale.totalValue);
-            return sum + (isNaN(value) ? 0 : value);
-          }, 0);
         }
 
-        const targetValue = parseFloat(goal.targetValue);
-        const percentage = targetValue > 0 ? (totalSales / targetValue) * 100 : 0;
+        const percentage = totalTarget > 0 ? (totalCurrent / totalTarget) * 100 : 0;
 
-        const [startYear, startMonth, startDay] = goal.weekStart.split('-').map(Number);
-        const [endYear, endMonth, endDay] = goal.weekEnd.split('-').map(Number);
+        const [startYear, startMonth, startDay] = earliestStart.split('-').map(Number);
+        const [endYear, endMonth, endDay] = latestEnd.split('-').map(Number);
         const startDateUtc = Date.UTC(startYear, startMonth - 1, startDay);
         const endDateUtc = Date.UTC(endYear, endMonth - 1, endDay);
         
-        const nowUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-        
-        const dayMs = 1000 * 60 * 60 * 24;
         const totalDays = Math.max(1, Math.floor((endDateUtc - startDateUtc) / dayMs) + 1);
-        
         let elapsedDays: number;
         let expectedPercentage: number;
         
@@ -889,28 +942,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const isOnTrack = percentage >= expectedPercentage;
 
-        const sellerUser = goal.sellerId ? await storage.getUser(goal.sellerId) : null;
+        const storeLabel = user.role === 'administrador' 
+          ? (storeId && storeId !== 'todas' ? storeId : 'Todas as Lojas')
+          : (managerStoreIds.length > 1 ? 'Suas Lojas' : managerStoreIds[0] || user.storeId);
 
         return {
-          id: goal.id,
-          storeId: goal.storeId,
-          type: goal.type,
-          period: goal.period,
-          sellerId: goal.sellerId,
-          sellerName: sellerUser?.fullName || null,
-          weekStart: goal.weekStart,
-          weekEnd: goal.weekEnd,
-          targetValue,
-          currentValue: totalSales,
+          id: `aggregated-${periodLabel}`,
+          storeId: storeLabel as string,
+          type: 'aggregated' as const,
+          period: periodLabel as 'weekly' | 'monthly',
+          sellerId: null,
+          sellerName: null,
+          weekStart: earliestStart,
+          weekEnd: latestEnd,
+          targetValue: totalTarget,
+          currentValue: totalCurrent,
           percentage,
           expectedPercentage,
           isOnTrack,
           elapsedDays,
           totalDays,
+          goalsCount: goals.length,
         };
-      }));
+      };
 
-      res.json(goalsWithProgress);
+      const results = [];
+      
+      const weeklyAggregated = await calculateAggregatedProgress(weeklyGoals, 'weekly');
+      if (weeklyAggregated) results.push(weeklyAggregated);
+      
+      const monthlyAggregated = await calculateAggregatedProgress(monthlyGoals, 'monthly');
+      if (monthlyAggregated) results.push(monthlyAggregated);
+
+      res.json(results);
     } catch (error: any) {
       console.error('Error fetching dashboard goals:', error);
       res.status(500).json({ 
