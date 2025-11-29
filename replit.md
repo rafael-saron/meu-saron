@@ -25,6 +25,7 @@ The system is built with a modern stack:
 - **Dark Mode**: Full support with a toggle, including logo inversion.
 - **Components**: Shadcn/UI extensively used, with custom color theming.
 - **Dashboard Optimization**: Tabbed architecture for on-demand data loading ("Resumo" for last 30 days, "Análises" and "Dados Completos" for historical data), custom date filters with debouncing, and ISO date validation.
+- **Sales Summary Cards**: "Vendas Hoje/Semana/Mês" cards use `/api/sales/summary` endpoint (local database) for accurate data that matches goal progress values.
 
 **Technical Implementations & Feature Specifications:**
 - **Database Schema**: Includes `users` (with roles), `chatMessages`, `scheduleEvents`, `announcements`, `anonymousMessages`, `salesGoals`, and `userStores` (junction table).
