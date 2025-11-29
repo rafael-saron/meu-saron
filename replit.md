@@ -20,155 +20,63 @@ The system is built with a modern stack:
 
 **UI/UX Decisions:**
 - **Color Scheme**: Primary colors are medium green (HSL 142° 55% 45%) along with white, black, and green accents.
-- **Logo**: The Saron logo is displayed on the login screen and sidebar, with automatic white/inverted version in dark mode using CSS filters (`dark:invert dark:brightness-0 dark:contrast-200`).
-- **Fonts**: Inter for body text, Poppins for titles and "Meu Saron" branding on login screen (font-display font-bold for modern, professional look).
-- **Dark Mode**: Full support with a toggle, including logo inversion for visibility.
-- **Components**: Shadcn/UI is used extensively, with custom color theming applied via `index.css`.
-- **Dashboard Optimization**: Features an optimized dashboard with a tabbed architecture for on-demand data loading (Resumo, Análises, Dados Completos) to improve performance.
-  - **Data Time Windows**: "Resumo" tab shows last 30 days by default; "Análises" and "Dados Completos" tabs show all historical data (since 2020) by default
-  - **Custom Date Filters**: Users can override default periods with custom date range (data inicial to data final)
-  - "Limpar Filtro" button appears when custom dates are active and resets to default 30-day period
-  - Custom date filters have precedence over tab-based date presets
-  - **Debouncing Implementation**: 500ms delay prevents excessive API calls during user input
-  - **ISO Date Validation**: Frontend and backend validate YYYY-MM-DD format to prevent malformed requests
+- **Logo**: Saron logo displayed on login and sidebar, with automatic white/inverted in dark mode.
+- **Fonts**: Inter for body text, Poppins for titles and "Meu Saron" branding.
+- **Dark Mode**: Full support with a toggle, including logo inversion.
+- **Components**: Shadcn/UI extensively used, with custom color theming.
+- **Dashboard Optimization**: Tabbed architecture for on-demand data loading ("Resumo" for last 30 days, "Análises" and "Dados Completos" for historical data), custom date filters with debouncing, and ISO date validation.
 
 **Technical Implementations & Feature Specifications:**
-- **Database Schema**: Includes `users` (with roles: administrador, gerente, vendedor, financeiro), `chatMessages`, `scheduleEvents`, `announcements`, `anonymousMessages`, `salesGoals` (with period field for weekly/monthly targets), and `userStores` (junction table for manager multi-store assignments).
-- **Authentication**: Complete JWT-based authentication via `express-session` with httpOnly cookies. Role-based access control (RBAC) is implemented for different user types.
-- **Multi-store Support**: Seamless integration with multiple Saron stores (Saron 1, 2, 3) via the Dapic API, with dynamic store selection and consolidated views.
-- **Real-time Chat**: WhatsApp-style chat with unread message counts and real-time updates via WebSockets.
-- **Anonymous Messaging**: Allows employees to send anonymous messages, with administrators retaining visibility of the sender's identity.
-- **User Management**: Comprehensive CRUD operations for users, including profile picture uploads, password resets by admins, and soft deletion.
-- **User Profile Page**: Complete profile management at `/perfil` with:
-  - Shadcn Form + useForm + zod validation for all forms
-  - Avatar upload with per-user directory isolation (`/uploads/avatars/{userId}/`)
-  - Password change with current password verification
-  - Session-based authorization (users can only edit their own profiles)
-  - Form reset after successful updates to prevent stale dirty state
-  - All inputs have data-testid attributes for testing
-- **Local Sales Storage System**: Complete sales data persistence and synchronization infrastructure
-  - **Database Schema**: 
-    - `sales` table: Stores sales with code, date, totalValue, sellerName, clientName, storeId, status
-    - `saleItems` table: Stores products sold with productCode, description, quantity, unitPrice, totalPrice
-    - Relations: One-to-many between sales and saleItems with cascade deletion
-  - **Automatic Synchronization**:
-    - **Monthly Cron Job**: Runs on day 1 at 00:05 (timezone São Paulo) to sync current month
-    - **Full History Sync**: On-demand sync from January 2024 onwards
-    - **Refresh Strategy**: DELETE-then-INSERT pattern ensures data accuracy
-    - **Error Isolation**: Per-store sync with independent error handling
-    - **Pagination**: Automatic Dapic pagination up to 100 pages per request
-  - **API Endpoints**:
-    - `POST /api/sales/sync`: Manual sync with custom date range and store selection
-    - `POST /api/sales/sync/full`: Full history sync (admin only)
-    - `GET /api/sales/sync/status`: Check sync status by store and period
-    - `GET /api/sales`: Query local sales with filters
-  - **Storage Layer**:
-    - `createSaleWithItems`: Atomic transaction for sale + items
-    - `getSales`: Filtered queries with case-insensitive seller matching
-    - `deleteSalesByPeriod`: Clean refresh for monthly sync
-  - **Data Mapping**: Robust field mapping from Dapic (Codigo, ValorLiquido, NomeVendedor, etc.) to local schema
-- **Role-Based Menu Access Control**:
-  - **Vendedores**: Only see "Dashboard" in Gestão menu
-  - **Gerentes**: See "Dashboard", "Clientes", "Vendas", "Produtos", "Metas" in Gestão menu
-  - **Administradores**: Full access to all menus including "Contas a Pagar" and "Usuários"
-  - **Financeiro**: See "Dashboard" and "Contas a Pagar"
-  - **Communication menus**: All roles have access to Calendário, Avisos, Chat, Mensagem Anônima
-- **Sales Goals Management** (`/metas`): Complete weekly/monthly goals system with:
-  - **Goal Types**: Individual (per seller/manager) or Team/Conjunta (entire store)
-  - **Period Support**: Weekly or Monthly tracking with appropriate date ranges
-  - **Weekly Tracking**: Goals tracked by week start/end dates
-  - **Monthly Tracking**: Goals tracked by month start/end dates with auto-calculation
-  - **Individual Goals**: Assign specific targets to individual sellers OR managers
-  - **Team Goals**: Collective targets where all sellers contribute (aggregates entire store sales)
-  - **Progress Visualization**: Real-time progress cards with color-coded indicators
-  - **Progress Calculation**: API endpoint `/api/goals/progress` calculates sales vs target **using local sales table**
-    - **Case-Insensitive Matching**: Sales are matched to sellers using normalized name comparison (LOWER/TRIM)
-    - **Team Goal Aggregation**: Team goals sum ALL store sales, not filtered by seller
-    - **Multi-Store Support**: Goals for "todas as lojas" aggregate across all stores automatically
-    - **Local Data Source**: Queries `sales` table instead of real-time Dapic calls for performance
-  - **Access Control**: Only administrador and gerente can create/modify goals
-  - **Manager Goals**: Gerentes can also have individual goals assigned to them (appear in collaborator list)
-  - **Auto-refresh**: Progress updates every 60 seconds
-  - **Visual Indicators**: Green (on track), Red (behind expected)
-- **Dashboard Goal Progress Bars** (`/api/goals/dashboard`):
-  - **Role-specific visibility**:
-    - **Vendedores**: See only their personal individual goals
-    - **Gerentes**: See personal goals + store goals (individual and team)
-    - **Administradores**: See all goals, or filtered by store if store is selected
-  - **On-Track Calculation**: Compares actual percentage vs expected percentage based on elapsed days
-  - **Color Coding**: Green if percentage >= expected, Red if percentage < expected
-  - **Expected Percentage**: Calculated as (elapsed days / total days) × 100
-  - **Progress Display**: Shows current value, target value, actual %, and expected %
-  - **Auto-refresh**: Updates every 60 seconds
-- **Multi-Store Manager Support**:
-  - **Backend Infrastructure**: Complete API endpoints for managing manager store assignments
-  - **User Stores Table**: Junction table linking users to multiple stores
-  - **API Endpoints**: GET/PUT `/api/users/:id/stores` for retrieving and updating store assignments
-  - **Storage Methods**: getUserStores() and setUserStores() for managing many-to-many relationships
-  - **Future UI Enhancement**: Profile/admin pages will support multi-store selection for managers
-- **Data Normalization**: Robust currency normalization for Dapic data to handle various input formats.
+- **Database Schema**: Includes `users` (with roles), `chatMessages`, `scheduleEvents`, `announcements`, `anonymousMessages`, `salesGoals`, and `userStores` (junction table).
+- **Authentication**: JWT-based with `express-session`, httpOnly cookies, and role-based access control (RBAC).
+- **Multi-store Support**: Seamless integration with Saron 1, 2, 3 via Dapic API for dynamic store selection and consolidated views.
+- **Real-time Chat**: WhatsApp-style chat with unread counts via WebSockets.
+- **Anonymous Messaging**: Employees can send anonymous messages, with admin visibility.
+- **User Management**: CRUD for users, profile picture uploads, admin password resets, and soft deletion.
+- **User Profile Page**: Complete profile management with Shadcn Form, Zod validation, avatar uploads, password changes, and session-based authorization.
+- **Local Sales Storage System**:
+    - **Database Schema**: `sales` and `saleItems` tables with one-to-many relationship.
+    - **Automatic Synchronization**: Monthly cron job and on-demand full history sync from Dapic using a DELETE-then-INSERT refresh strategy.
+    - **Error Isolation**: Per-store sync with independent error handling.
+    - **Pagination**: Automatic Dapic pagination up to 100 pages per request.
+    - **API Endpoints**: For manual sync, full sync, status checks, and querying local sales.
+- **Role-Based Menu Access Control**: Granular menu access based on user roles (Vendedores, Gerentes, Administradores, Financeiro).
+- **Sales Goals Management (`/metas`)**:
+    - **Goal Types**: Individual (seller/manager) or Team/Conjunta (store-wide).
+    - **Period Support**: Weekly or Monthly tracking with date ranges.
+    - **Progress Visualization**: Real-time cards with color-coded indicators based on local sales data.
+    - **Access Control**: Admin and Manager roles can create/modify goals.
+    - **Auto-refresh**: Progress updates every 60 seconds.
+- **Dashboard Goal Progress Bars (`/api/goals/dashboard`)**:
+    - Displays goals relevant to the current period.
+    - Role-specific display: individual goals for sellers, aggregated for managers/admins.
+    - Calculates "on-track" status based on actual vs. expected percentage.
+    - Auto-refreshes every 60 seconds.
+- **Multi-Store Manager Support**: Backend APIs for assigning multiple stores to managers via `userStores` junction table.
+- **Data Normalization**: Robust currency normalization for Dapic data.
 
 **System Design Choices:**
-- Frontend and backend are served on the same port (5000) using a Vite proxy.
-- WebSocket communication shares the same port as the HTTP server.
-- React Query is used for automatic data caching and invalidation, optimizing API calls.
-- Automatic admin user creation on first boot (`admin`/`admin123`).
-- Role scoping ensures data visibility is restricted based on user roles and assigned stores.
-
-**Known Performance Considerations:**
-- **Consolidated Data Loading**: When viewing "Todas as Lojas", the `/api/dapic/todas/vendaspdv` endpoint fetches data from all three stores in parallel with pagination (up to 50 pages per store = 30,000 records total). This can take 2+ minutes to complete.
-- **Chart Rendering Behavior**: Charts in the "Análises" tab may show loading placeholders while consolidated data is being fetched. Individual store views (Saron 1, 2, or 3) load significantly faster.
-- **API Response Format**: All consolidated endpoints (`/api/dapic/todas/*`) return `{ data: { [storeId]: data }, errors: { [storeId]: error } }` format for consistency.
-- **Shared Data Optimization**: Clients (16,933 total) and products (1,001 total) are shared across all Dapic stores. When requesting `storeId='todas'`, the system:
-  - Fetches complete dataset from one canonical store (with sequential fallback if primary fails)
-  - Forces full auto-pagination (ignores any Pagina param to ensure all records are fetched)
-  - Replicates the canonical data to all store keys to maintain response contract
-  - Preserves errors from failed stores for monitoring and debugging
-  - Avoids redundant API calls while maintaining per-store response structure
-- **Pagination Limits**: Auto-pagination enforced with safety limits to prevent excessive API calls:
-  - Clientes: 20 pages × 200 records = 4,000 max
-  - Produtos: 5 pages × 200 records = 1,000 max (covers all 1,001 products)
-  - VendasPDV: 10 pages × 200 records = 2,000 max per store
-- **Optimized Data Loading**: Dashboard uses tab-based conditional data fetching:
-  - "Resumo" tab: Only loads sales data from last 30 days (fastest)
-  - "Análises" tab: Loads all historical sales data for comprehensive charts
-  - "Dados Completos" tab: Loads all data (clients, products, bills, historical sales) - slowest but most complete
-  - This approach reduces initial page load time and API calls
-- **Products Page**: 
-  - Shared data across all stores (no duplicate products)
-  - Sort by name OR code with A-Z/Z-A toggle
-  - Pagination: 100 products per page
-- **Clients Page**:
-  - Unified client database across all stores
-  - Displays name and document (CPF/CNPJ)
-  - Search by name, email, or document
-  - Pagination: 100 clients per page
-  - Fallback support for both `Resultado` and `Dados` response formats
-- **Sales Page (Vendas PDV)**: 
-  - **Default Store**: "Todas as Lojas" (consolidated view across all stores)
-  - Default 30 days of sales with customizable date filters
-  - Date range filters: data inicial and data final with calendar icon
-  - Displays total sales, quantity, and average ticket metrics
-  - Full table with columns: Code, Date, Client, Salesperson, Total Value, Status
-  - Uses `ValorLiquido` field (with fallback to `ValorTotal`) for consistency with dashboard
-  - Robust field fallbacks: supports both `NomeCliente`/`Cliente`, `NomeVendedor`/`Vendedor`, `DataFechamento`/`DataEmissao`/`Data`
-  - Search filter synchronized with display fields for accurate filtering
-  - Nullish coalescing (`??`) used to preserve legitimate zero values
-  - Pagination: 50 sales per page
-  - Search by customer, code, or salesperson
+- Frontend and backend share port 5000 via Vite proxy.
+- WebSocket communication on the same port as HTTP.
+- React Query for data caching and invalidation.
+- Automatic admin user creation on first boot.
+- Role scoping restricts data visibility based on user roles and assigned stores.
+- **Consolidated Data Loading**: "Todas as Lojas" view loads data from all three stores in parallel, with pagination up to 30,000 records.
+- **Chart Rendering**: "Análises" tab charts show loading placeholders during consolidated data fetching.
+- **API Response Format**: Consolidated endpoints return `{ data: { [storeId]: data }, errors: { [storeId]: error } }`.
+- **Shared Data Optimization**: Clients and products are fetched from one canonical store to avoid redundant API calls when requesting `storeId='todas'`.
+- **Pagination Limits**: Safety limits applied to auto-pagination for clients (4,000 max), products (1,000 max), and sales (2,000 max per store).
+- **Optimized Data Loading**: Dashboard uses tab-based conditional data fetching to reduce initial load times.
+- **Products Page**: Shared data, sortable, 100 products per page.
+- **Clients Page**: Unified database, search by name/document, 100 clients per page.
+- **Sales Page (Vendas PDV)**: Default "Todas as Lojas" view, 30 days default, customizable date filters, displays metrics and a detailed table with robust field fallbacks and pagination.
 
 ## External Dependencies
 - **Dapic ERP API**:
     - **Base URL**: `https://api.dapic.com.br`
     - **Authentication**: Bearer Token JWT with automatic renewal.
     - **Rate Limit**: 100 requests/minute per endpoint.
-    - **Integrated Endpoints**:
-        - `/autenticacao/v1/login`
-        - `/v1/clientes`
-        - `/v1/orcamentos` (for quotations)
-        - `/v1/produtos`
-        - `/v1/vendaspdv` (for finalized POS sales)
-        - `/v1/contaspagar` (accounts payable - endpoint configured but may not be available in current Dapic environment)
+    - **Integrated Endpoints**: `/autenticacao/v1/login`, `/v1/clientes`, `/v1/orcamentos`, `/v1/produtos`, `/v1/vendaspdv`, `/v1/contaspagar`.
     - **Credentials**: `DAPIC_EMPRESA` and `DAPIC_TOKEN_INTEGRACAO` (environment secrets).
 - **PostgreSQL Database**: Utilized through Neon, accessed via Drizzle ORM.
 - **Axios**: For HTTP client requests.
