@@ -69,7 +69,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { username, password } = loginSchema.parse(req.body);
       
-      const user = await storage.getUserByUsername(username);
+      // Try to find user by username first, then by email
+      let user = await storage.getUserByUsername(username);
+      if (!user) {
+        user = await storage.getUserByEmail(username);
+      }
       
       if (!user || !user.isActive) {
         return res.status(401).json({ error: "Usuário ou senha incorretos" });
