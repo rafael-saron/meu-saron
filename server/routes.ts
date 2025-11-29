@@ -1348,5 +1348,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/sales/summary", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "Usuário não encontrado" });
+      }
+
+      const { storeId } = req.query;
+      
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+      
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - now.getDay());
+      const weekStartStr = weekStart.toISOString().split('T')[0];
+      
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      const weekEndStr = weekEnd.toISOString().split('T')[0];
+      
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const monthStartStr = monthStart.toISOString().split('T')[0];
+      
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const monthEndStr = monthEnd.toISOString().split('T')[0];
+
+      const sellerFilter = user.role === 'vendedor' ? user.fullName : undefined;
+      const storeFilter = storeId as string;
+
+      const [todaySales, weekSales, monthSales] = await Promise.all([
+        storage.getSales({
+          storeId: storeFilter,
+          sellerName: sellerFilter,
+          startDate: todayStr,
+          endDate: todayStr,
+        }),
+        storage.getSales({
+          storeId: storeFilter,
+          sellerName: sellerFilter,
+          startDate: weekStartStr,
+          endDate: weekEndStr,
+        }),
+        storage.getSales({
+          storeId: storeFilter,
+          sellerName: sellerFilter,
+          startDate: monthStartStr,
+          endDate: monthEndStr,
+        }),
+      ]);
+
+      const sumSales = (salesList: typeof todaySales) => 
+        salesList.reduce((sum, sale) => {
+          const value = parseFloat(sale.totalValue);
+          return sum + (isNaN(value) ? 0 : value);
+        }, 0);
+
+      res.json({
+        today: sumSales(todaySales),
+        week: sumSales(weekSales),
+        month: sumSales(monthSales),
+        todayCount: todaySales.length,
+        weekCount: weekSales.length,
+        monthCount: monthSales.length,
+        periods: {
+          today: todayStr,
+          weekStart: weekStartStr,
+          weekEnd: weekEndStr,
+          monthStart: monthStartStr,
+          monthEnd: monthEndStr,
+        }
+      });
+    } catch (error: any) {
+      console.error('Error fetching sales summary:', error);
+      res.status(500).json({ 
+        error: "Erro ao buscar resumo de vendas",
+        message: error.message 
+      });
+    }
+  });
+
   return httpServer;
 }
