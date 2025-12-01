@@ -33,21 +33,27 @@ export default function Clientes() {
     : (data?.Resultado || []);
 
   const filteredClients = useMemo(() => {
-    let filtered = clientsList.filter((client: any) =>
-      (client.Nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (client.Email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (client.NomeFantasia || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (client.CPF || '').includes(searchTerm) ||
-      (client.CNPJ || '').includes(searchTerm)
-    );
+    let filtered = clientsList.filter((client: any) => {
+      const nome = client.NomeRazaoSocial || client.Nome || '';
+      const fantasia = client.Fantasia || client.NomeFantasia || '';
+      const email = client.Email || '';
+      const cpfCnpj = client.CpfCnpj || client.CPF || client.CNPJ || '';
+      const celular = client.Celular || '';
+      
+      return nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        fantasia.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        cpfCnpj.includes(searchTerm) ||
+        celular.includes(searchTerm);
+    });
 
     if (sortOrder) {
       filtered = [...filtered].sort((a, b) => {
-        const nameA = (a.Nome || a.NomeFantasia || '').toLowerCase();
-        const nameB = (b.Nome || b.NomeFantasia || '').toLowerCase();
+        const nameA = (a.NomeRazaoSocial || a.Nome || a.Fantasia || '').toLowerCase();
+        const nameB = (b.NomeRazaoSocial || b.Nome || b.Fantasia || '').toLowerCase();
         return sortOrder === 'asc' 
-          ? nameA.localeCompare(nameB)
-          : nameB.localeCompare(nameA);
+          ? nameA.localeCompare(nameB, 'pt-BR')
+          : nameB.localeCompare(nameA, 'pt-BR');
       });
     }
 
@@ -163,8 +169,10 @@ export default function Clientes() {
               <TableBody>
                 {paginatedClients.map((client: any, index: number) => {
                   const clientId = client.Id || client.Codigo || index;
-                  const clientName = client.Nome || client.NomeFantasia || 'Cliente Sem Nome';
-                  const initials = clientName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                  const clientName = client.NomeRazaoSocial || client.Nome || client.Fantasia || 'Cliente Sem Nome';
+                  const fantasia = client.Fantasia || client.NomeFantasia;
+                  const initials = clientName.split(' ').filter((n: string) => n).map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'CL';
+                  const isActive = client.StatusCliente === 0 || client.DescricaoStatusCliente === 'Ativo' || client.Ativo;
                   
                   return (
                     <TableRow key={clientId} className="hover-elevate" data-testid={`row-client-${clientId}`}>
@@ -177,8 +185,8 @@ export default function Clientes() {
                           </Avatar>
                           <div>
                             <p className="font-medium text-foreground">{clientName}</p>
-                            {client.NomeFantasia && client.Nome !== client.NomeFantasia && (
-                              <p className="text-sm text-muted-foreground">{client.NomeFantasia}</p>
+                            {fantasia && fantasia !== clientName && (
+                              <p className="text-sm text-muted-foreground">{fantasia}</p>
                             )}
                           </div>
                         </div>
@@ -188,17 +196,17 @@ export default function Clientes() {
                           {client.Email && (
                             <p className="text-sm text-muted-foreground">{client.Email}</p>
                           )}
-                          {client.Telefone && (
-                            <p className="text-sm text-muted-foreground">{client.Telefone}</p>
+                          {(client.Celular || client.Telefone) && (
+                            <p className="text-sm text-muted-foreground">{client.Celular || client.Telefone}</p>
                           )}
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {client.CPF || client.CNPJ || '-'}
+                        {client.CpfCnpj || client.CPF || client.CNPJ || '-'}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Badge variant={client.Ativo ? "default" : "secondary"}>
-                          {client.Ativo ? "Ativo" : "Inativo"}
+                        <Badge variant={isActive ? "default" : "secondary"}>
+                          {isActive ? "Ativo" : "Inativo"}
                         </Badge>
                       </TableCell>
                     </TableRow>

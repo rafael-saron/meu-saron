@@ -52,6 +52,7 @@ export interface IStorage {
   getAnnouncements(): Promise<Announcement[]>;
   createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement>;
   updateAnnouncement(id: string, announcement: Partial<Announcement>): Promise<Announcement | undefined>;
+  deleteAnnouncement(id: string): Promise<void>;
   
   getAnonymousMessages(): Promise<AnonymousMessage[]>;
   createAnonymousMessage(message: InsertAnonymousMessage): Promise<AnonymousMessage>;
@@ -204,6 +205,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(announcements.id, id))
       .returning();
     return announcement || undefined;
+  }
+
+  async deleteAnnouncement(id: string): Promise<void> {
+    await db.delete(announcements).where(eq(announcements.id, id));
   }
 
   async getAnonymousMessages(): Promise<AnonymousMessage[]> {

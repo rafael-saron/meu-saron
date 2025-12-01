@@ -1,49 +1,33 @@
 import { useState } from "react";
-import { Bell, Pin, Plus, AlertTriangle, Info, AlertCircle } from "lucide-react";
+import { Bell, Pin, Plus, AlertTriangle, Info, AlertCircle, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-
-const mockAnnouncements = [
-  {
-    id: 1,
-    title: "Reunião Geral de Equipe",
-    content: "Reunião agendada para discutir as metas do próximo trimestre e apresentar novos produtos. Presença obrigatória para todos os gerentes.",
-    priority: "urgent",
-    author: { name: "Direção", initials: "DR" },
-    isPinned: true,
-    createdAt: "2024-01-15T10:00:00",
-  },
-  {
-    id: 2,
-    title: "Novo Sistema de Comissões",
-    content: "A partir de fevereiro, entraremos com o novo sistema de cálculo de comissões. Verifiquem os detalhes no portal.",
-    priority: "important",
-    author: { name: "RH", initials: "RH" },
-    isPinned: true,
-    createdAt: "2024-01-14T14:30:00",
-  },
-  {
-    id: 3,
-    title: "Horário de Funcionamento - Carnaval",
-    content: "Durante o período de Carnaval, as lojas funcionarão em horário reduzido. Confiram a escala de cada unidade.",
-    priority: "normal",
-    author: { name: "Gerência", initials: "GR" },
-    isPinned: false,
-    createdAt: "2024-01-13T09:15:00",
-  },
-  {
-    id: 4,
-    title: "Chegada de Nova Coleção",
-    content: "Nova coleção de primavera-verão chegará na próxima semana. Preparem o estoque e vitrines.",
-    priority: "normal",
-    author: { name: "Direção", initials: "DR" },
-    isPinned: false,
-    createdAt: "2024-01-12T16:45:00",
-  },
-];
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import type { User, Announcement } from "@shared/schema";
 
 const priorityConfig = {
   urgent: {
@@ -71,24 +55,132 @@ const priorityConfig = {
 
 export default function Avisos() {
   const [filter, setFilter] = useState<"all" | "pinned">("all");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { toast } = useToast();
+
+  const { data: currentUser } = useQuery<User>({
+    queryKey: ['/api/auth/me'],
+  });
+
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ['/api/users'],
+  });
+
+  const { data: announcements = [], isLoading } = useQuery<Announcement[]>({
+    queryKey: ['/api/announcements'],
+  });
+
+  const [formData, setFormData] = useState({
+    title: "",
+    content: "",
+    priority: "normal",
+    isPinned: false,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return apiRequest('POST', '/api/announcements', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/announcements'] });
+      setIsDialogOpen(false);
+      resetForm();
+      toast({
+        title: "Aviso criado",
+        description: "O aviso foi publicado com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao criar aviso",
+        description: error.message || "Ocorreu um erro ao criar o aviso.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('DELETE', `/api/announcements/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/announcements'] });
+      toast({
+        title: "Aviso removido",
+        description: "O aviso foi removido com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao remover aviso",
+        description: error.message || "Ocorreu um erro ao remover o aviso.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resetForm = () => {
+    setFormData({
+      title: "",
+      content: "",
+      priority: "normal",
+      isPinned: false,
+    });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.title || !formData.content) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Preencha o título e o conteúdo do aviso.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    createMutation.mutate({
+      title: formData.title,
+      content: formData.content,
+      priority: formData.priority,
+      isPinned: formData.isPinned,
+      authorId: currentUser?.id,
+    });
+  };
+
+  const getAuthorName = (authorId: string) => {
+    const author = users.find(u => u.id === authorId);
+    return author?.fullName || 'Autor';
+  };
+
+  const getAuthorInitials = (authorId: string) => {
+    const author = users.find(u => u.id === authorId);
+    if (!author?.fullName) return 'AU';
+    return author.fullName.split(' ').filter((n: string) => n).map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+  };
 
   const filteredAnnouncements = filter === "pinned"
-    ? mockAnnouncements.filter(a => a.isPinned)
-    : mockAnnouncements;
+    ? announcements.filter(a => a.isPinned)
+    : announcements;
+
+  const canManageAnnouncements = currentUser?.role === 'administrador' || currentUser?.role === 'gerente';
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-display font-semibold text-foreground" data-testid="text-page-title">
             Avisos e Comunicados
           </h1>
           <p className="text-muted-foreground mt-1">Comunicações importantes da direção</p>
         </div>
-        <Button data-testid="button-new-announcement">
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Aviso
-        </Button>
+        {canManageAnnouncements && (
+          <Button onClick={() => setIsDialogOpen(true)} data-testid="button-new-announcement">
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Aviso
+          </Button>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
@@ -112,63 +204,181 @@ export default function Avisos() {
         </Button>
       </div>
 
-      <div className="space-y-4">
-        {filteredAnnouncements.map((announcement) => {
-          const config = priorityConfig[announcement.priority as keyof typeof priorityConfig];
-          const Icon = config.icon;
-
-          return (
-            <Card
-              key={announcement.id}
-              className={cn(
-                "hover-elevate border-l-4",
-                config.borderColor,
-                config.bgColor
-              )}
-              data-testid={`card-announcement-${announcement.id}`}
-            >
+      {isLoading ? (
+        <div className="space-y-4">
+          {Array(3).fill(0).map((_, i) => (
+            <Card key={i}>
               <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3 flex-1">
-                    <div className={cn("p-2 rounded-md bg-background/50", config.color)}>
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <CardTitle className="text-lg font-display">{announcement.title}</CardTitle>
-                        {announcement.isPinned && (
-                          <Pin className="h-4 w-4 text-muted-foreground" fill="currentColor" />
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-xs">
-                            {announcement.author.initials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span>{announcement.author.name}</span>
-                        <span>•</span>
-                        <span>{new Date(announcement.createdAt).toLocaleDateString('pt-BR', {
-                          day: '2-digit',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}</span>
-                        <Badge variant="secondary" className={config.color}>
-                          {config.label}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-4 w-1/2 mt-2" />
               </CardHeader>
               <CardContent>
-                <p className="text-foreground leading-relaxed">{announcement.content}</p>
+                <Skeleton className="h-16 w-full" />
               </CardContent>
             </Card>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      ) : filteredAnnouncements.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Bell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">
+              {filter === "pinned" 
+                ? "Nenhum aviso fixado no momento." 
+                : "Nenhum aviso publicado ainda."}
+            </p>
+            {canManageAnnouncements && (
+              <Button 
+                className="mt-4" 
+                onClick={() => setIsDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Criar primeiro aviso
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {filteredAnnouncements.map((announcement) => {
+            const config = priorityConfig[announcement.priority as keyof typeof priorityConfig] || priorityConfig.normal;
+            const Icon = config.icon;
+
+            return (
+              <Card
+                key={announcement.id}
+                className={cn(
+                  "hover-elevate border-l-4",
+                  config.borderColor,
+                  config.bgColor
+                )}
+                data-testid={`card-announcement-${announcement.id}`}
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className={cn("p-2 rounded-md bg-background/50", config.color)}>
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <CardTitle className="text-lg font-display">{announcement.title}</CardTitle>
+                          {announcement.isPinned && (
+                            <Pin className="h-4 w-4 text-muted-foreground" fill="currentColor" />
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                          <Avatar className="h-6 w-6">
+                            <AvatarFallback className="text-xs">
+                              {getAuthorInitials(announcement.authorId)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span>{getAuthorName(announcement.authorId)}</span>
+                          <span className="hidden sm:inline">-</span>
+                          <span>{new Date(announcement.createdAt).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}</span>
+                          <Badge variant="secondary" className={config.color}>
+                            {config.label}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    {canManageAnnouncements && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteMutation.mutate(announcement.id)}
+                        className="text-muted-foreground hover:text-destructive"
+                        data-testid={`button-delete-${announcement.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-foreground leading-relaxed whitespace-pre-wrap">{announcement.content}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Novo Aviso</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="title">Título *</Label>
+                <Input
+                  id="title"
+                  value={formData.title}
+                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="Título do aviso"
+                  data-testid="input-title"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="content">Conteúdo *</Label>
+                <Textarea
+                  id="content"
+                  value={formData.content}
+                  onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                  placeholder="Escreva o conteúdo do aviso..."
+                  className="min-h-[120px]"
+                  data-testid="input-content"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="priority">Prioridade</Label>
+                <Select
+                  value={formData.priority}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, priority: value }))}
+                >
+                  <SelectTrigger data-testid="select-priority">
+                    <SelectValue placeholder="Selecione a prioridade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="important">Importante</SelectItem>
+                    <SelectItem value="urgent">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="isPinned">Fixar aviso</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Avisos fixados aparecem no topo da lista
+                  </p>
+                </div>
+                <Switch
+                  id="isPinned"
+                  checked={formData.isPinned}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isPinned: checked }))}
+                  data-testid="switch-pinned"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit">
+                {createMutation.isPending ? "Publicando..." : "Publicar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

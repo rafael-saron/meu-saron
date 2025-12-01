@@ -153,7 +153,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users", async (req, res) => {
     try {
       const allUsers = await storage.getAllUsers();
-      res.json(allUsers);
+      const sortedUsers = allUsers.sort((a, b) => 
+        (a.fullName || '').localeCompare(b.fullName || '', 'pt-BR')
+      );
+      res.json(sortedUsers);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch users" });
     }
@@ -550,6 +553,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/announcements/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteAnnouncement(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete announcement" });
+    }
+  });
+
   app.get("/api/anonymous-messages", async (req, res) => {
     try {
       const allMessages = await storage.getAnonymousMessages();
@@ -809,71 +822,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return todayStr >= goal.weekStart && todayStr <= goal.weekEnd;
       });
 
+      // Helper function to calculate goal progress
+      const calculateGoalProgress = async (goal: typeof currentGoals[0], sellerName?: string) => {
+        const sales = await storage.getSales({
+          storeId: goal.storeId,
+          sellerName: goal.type === 'individual' ? sellerName : undefined,
+          startDate: goal.weekStart,
+          endDate: goal.weekEnd,
+        });
+        
+        const totalSales = sales.reduce((sum, sale) => {
+          const value = parseFloat(sale.totalValue);
+          return sum + (isNaN(value) ? 0 : value);
+        }, 0);
+
+        const targetValue = parseFloat(goal.targetValue);
+        const percentage = targetValue > 0 ? (totalSales / targetValue) * 100 : 0;
+
+        const [startYear, startMonth, startDay] = goal.weekStart.split('-').map(Number);
+        const [endYear, endMonth, endDay] = goal.weekEnd.split('-').map(Number);
+        const startDateUtc = Date.UTC(startYear, startMonth - 1, startDay);
+        const endDateUtc = Date.UTC(endYear, endMonth - 1, endDay);
+        
+        const totalDays = Math.max(1, Math.floor((endDateUtc - startDateUtc) / dayMs) + 1);
+        const elapsedDays = Math.floor((nowUtc - startDateUtc) / dayMs) + 1;
+        const expectedPercentage = (elapsedDays / totalDays) * 100;
+        const isOnTrack = percentage >= expectedPercentage;
+
+        return {
+          id: goal.id,
+          storeId: goal.storeId,
+          type: goal.type,
+          period: goal.period,
+          sellerId: goal.sellerId,
+          sellerName: sellerName || null,
+          weekStart: goal.weekStart,
+          weekEnd: goal.weekEnd,
+          targetValue,
+          currentValue: totalSales,
+          percentage,
+          expectedPercentage,
+          isOnTrack,
+          elapsedDays,
+          totalDays,
+        };
+      };
+
       if (user.role === 'vendedor') {
         const vendorGoals = currentGoals.filter(goal => 
           goal.type === 'individual' && goal.sellerId === user.id
         );
 
-        const goalsWithProgress = await Promise.all(vendorGoals.map(async (goal) => {
-          const sales = await storage.getSales({
-            storeId: goal.storeId,
-            sellerName: user.fullName,
-            startDate: goal.weekStart,
-            endDate: goal.weekEnd,
-          });
-          
-          const totalSales = sales.reduce((sum, sale) => {
-            const value = parseFloat(sale.totalValue);
-            return sum + (isNaN(value) ? 0 : value);
-          }, 0);
-
-          const targetValue = parseFloat(goal.targetValue);
-          const percentage = targetValue > 0 ? (totalSales / targetValue) * 100 : 0;
-
-          const [startYear, startMonth, startDay] = goal.weekStart.split('-').map(Number);
-          const [endYear, endMonth, endDay] = goal.weekEnd.split('-').map(Number);
-          const startDateUtc = Date.UTC(startYear, startMonth - 1, startDay);
-          const endDateUtc = Date.UTC(endYear, endMonth - 1, endDay);
-          
-          const totalDays = Math.max(1, Math.floor((endDateUtc - startDateUtc) / dayMs) + 1);
-          const elapsedDays = Math.floor((nowUtc - startDateUtc) / dayMs) + 1;
-          const expectedPercentage = (elapsedDays / totalDays) * 100;
-          const isOnTrack = percentage >= expectedPercentage;
-
-          return {
-            id: goal.id,
-            storeId: goal.storeId,
-            type: goal.type,
-            period: goal.period,
-            sellerId: goal.sellerId,
-            sellerName: user.fullName,
-            weekStart: goal.weekStart,
-            weekEnd: goal.weekEnd,
-            targetValue,
-            currentValue: totalSales,
-            percentage,
-            expectedPercentage,
-            isOnTrack,
-            elapsedDays,
-            totalDays,
-          };
-        }));
+        const goalsWithProgress = await Promise.all(vendorGoals.map(goal => 
+          calculateGoalProgress(goal, user.fullName)
+        ));
 
         return res.json(goalsWithProgress);
       }
 
-      let relevantGoals = currentGoals;
+      // Gerentes: mostrar meta individual própria + metas de equipe da loja
       if (user.role === 'gerente') {
-        relevantGoals = currentGoals.filter(goal => {
-          if (storeId && storeId !== 'todas') {
-            return goal.storeId === storeId && managerStoreIds.includes(goal.storeId);
-          }
-          return managerStoreIds.includes(goal.storeId);
-        });
-      } else if (user.role === 'administrador') {
-        if (storeId && storeId !== 'todas') {
-          relevantGoals = currentGoals.filter(goal => goal.storeId === storeId);
+        const results: any[] = [];
+        
+        // Metas individuais da gerente
+        const managerIndividualGoals = currentGoals.filter(goal => 
+          goal.type === 'individual' && goal.sellerId === user.id
+        );
+        
+        for (const goal of managerIndividualGoals) {
+          const progress = await calculateGoalProgress(goal, user.fullName);
+          results.push(progress);
         }
+        
+        // Metas de equipe das lojas que a gerente gerencia
+        const teamGoals = currentGoals.filter(goal => 
+          goal.type === 'team' && managerStoreIds.includes(goal.storeId)
+        );
+        
+        for (const goal of teamGoals) {
+          const progress = await calculateGoalProgress(goal);
+          results.push(progress);
+        }
+        
+        return res.json(results);
+      }
+
+      // Administrador: metas agregadas
+      let relevantGoals = currentGoals;
+      if (storeId && storeId !== 'todas') {
+        relevantGoals = currentGoals.filter(goal => goal.storeId === storeId);
       }
 
       const weeklyGoals = relevantGoals.filter(g => g.period === 'weekly');
