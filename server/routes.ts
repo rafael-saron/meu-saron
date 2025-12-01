@@ -214,15 +214,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Convert bonus percentages to strings for storage
-      const dataForStorage: Partial<typeof parsedData> = { ...parsedData };
+      const dataForStorage: Record<string, any> = { ...parsedData };
       if (parsedData.bonusPercentageAchieved !== null && parsedData.bonusPercentageAchieved !== undefined) {
-        dataForStorage.bonusPercentageAchieved = parsedData.bonusPercentageAchieved.toFixed(2) as any;
+        dataForStorage.bonusPercentageAchieved = parsedData.bonusPercentageAchieved.toFixed(2);
       }
       if (parsedData.bonusPercentageNotAchieved !== null && parsedData.bonusPercentageNotAchieved !== undefined) {
-        dataForStorage.bonusPercentageNotAchieved = parsedData.bonusPercentageNotAchieved.toFixed(2) as any;
+        dataForStorage.bonusPercentageNotAchieved = parsedData.bonusPercentageNotAchieved.toFixed(2);
       }
       
-      const updatedUser = await storage.updateUser(id, dataForStorage);
+      const updatedUser = await storage.updateUser(id, dataForStorage as any);
       if (!updatedUser) {
         return res.status(404).json({ error: "User not found" });
       }

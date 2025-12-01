@@ -437,7 +437,9 @@ export default function Dashboard() {
         <TabsList data-testid="tabs-dashboard">
           <TabsTrigger value="resumo" data-testid="tab-resumo">Resumo</TabsTrigger>
           <TabsTrigger value="analises" data-testid="tab-analises">Análises</TabsTrigger>
-          <TabsTrigger value="dados-completos" data-testid="tab-dados-completos">Dados Completos</TabsTrigger>
+          {user?.role !== 'vendedor' && (
+            <TabsTrigger value="dados-completos" data-testid="tab-dados-completos">Dados Completos</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="resumo" className="space-y-6">
