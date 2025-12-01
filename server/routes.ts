@@ -823,7 +823,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Helper function to calculate goal progress
-      const calculateGoalProgress = async (goal: typeof currentGoals[0], sellerName?: string) => {
+      const calculateGoalProgress = async (goal: typeof currentGoals[0], sellerName?: string, sellerUser?: typeof user) => {
         const sales = await storage.getSales({
           storeId: goal.storeId,
           sellerName: goal.type === 'individual' ? sellerName : undefined,
@@ -849,6 +849,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const expectedPercentage = (elapsedDays / totalDays) * 100;
         const isOnTrack = percentage >= expectedPercentage;
 
+        // Calcular bonificação para metas individuais
+        let bonusPercentageAchieved: number | null = null;
+        let bonusPercentageNotAchieved: number | null = null;
+        let estimatedBonus: number | null = null;
+
+        if (goal.type === 'individual' && sellerUser) {
+          bonusPercentageAchieved = sellerUser.bonusPercentageAchieved 
+            ? parseFloat(sellerUser.bonusPercentageAchieved) 
+            : null;
+          bonusPercentageNotAchieved = sellerUser.bonusPercentageNotAchieved 
+            ? parseFloat(sellerUser.bonusPercentageNotAchieved) 
+            : null;
+
+          if (bonusPercentageAchieved !== null || bonusPercentageNotAchieved !== null) {
+            const bonusPercentage = percentage >= 100 
+              ? (bonusPercentageAchieved || 0) 
+              : (bonusPercentageNotAchieved || 0);
+            estimatedBonus = totalSales * (bonusPercentage / 100);
+          }
+        }
+
         return {
           id: goal.id,
           storeId: goal.storeId,
@@ -865,6 +886,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           isOnTrack,
           elapsedDays,
           totalDays,
+          bonusPercentageAchieved,
+          bonusPercentageNotAchieved,
+          estimatedBonus,
         };
       };
 
@@ -874,7 +898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         const goalsWithProgress = await Promise.all(vendorGoals.map(goal => 
-          calculateGoalProgress(goal, user.fullName)
+          calculateGoalProgress(goal, user.fullName, user)
         ));
 
         return res.json(goalsWithProgress);
@@ -890,7 +914,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         
         for (const goal of managerIndividualGoals) {
-          const progress = await calculateGoalProgress(goal, user.fullName);
+          const progress = await calculateGoalProgress(goal, user.fullName, user);
           results.push(progress);
         }
         

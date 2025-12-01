@@ -241,6 +241,9 @@ export default function Dashboard() {
     elapsedDays: number;
     totalDays: number;
     goalsCount?: number;
+    bonusPercentageAchieved: number | null;
+    bonusPercentageNotAchieved: number | null;
+    estimatedBonus: number | null;
   }
 
   const goalsQueryUrl = `/api/goals/dashboard?storeId=${encodeURIComponent(selectedStore || '')}`;
@@ -569,6 +572,35 @@ export default function Dashboard() {
                               <span>Meta: R$ {goal.targetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                             </div>
                           </div>
+                          {goal.estimatedBonus !== null && goal.type === 'individual' && (
+                            <div className="mt-3 pt-3 border-t border-border/50">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-muted-foreground">
+                                    Bonificação Estimada
+                                  </span>
+                                  <Badge 
+                                    variant={goal.percentage >= 100 ? "default" : "secondary"} 
+                                    className="text-xs"
+                                  >
+                                    {goal.percentage >= 100 
+                                      ? `${goal.bonusPercentageAchieved?.toFixed(1)}%` 
+                                      : `${goal.bonusPercentageNotAchieved?.toFixed(1)}%`
+                                    }
+                                  </Badge>
+                                </div>
+                                <span className={`text-lg font-bold ${goal.percentage >= 100 ? 'text-green-600 dark:text-green-400' : 'text-foreground'}`}>
+                                  R$ {goal.estimatedBonus.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {goal.percentage >= 100 
+                                  ? "Meta batida! Esse é o valor da sua bonificação." 
+                                  : "Valor atual. Bata a meta para receber a bonificação completa!"
+                                }
+                              </p>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
