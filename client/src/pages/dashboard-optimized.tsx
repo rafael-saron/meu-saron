@@ -592,7 +592,7 @@ export default function Dashboard() {
                                   </Badge>
                                 </div>
                                 <span className={`text-lg font-bold ${goal.percentage >= 100 ? 'text-green-600 dark:text-green-400' : 'text-foreground'}`}>
-                                  R$ {goal.estimatedBonus.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  R$ {goal.estimatedBonus.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                               </div>
                               <p className="text-xs text-muted-foreground mt-1">

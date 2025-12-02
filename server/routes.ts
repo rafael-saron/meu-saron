@@ -1423,7 +1423,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { storeId } = req.query;
       
-      const now = new Date();
+      // Usar fuso horário do Brasil (UTC-3)
+      const getBrazilDate = () => {
+        const now = new Date();
+        const brazilOffset = -3 * 60; // UTC-3 em minutos
+        const utcOffset = now.getTimezoneOffset();
+        return new Date(now.getTime() + (utcOffset + brazilOffset) * 60 * 1000);
+      };
+      
+      const now = getBrazilDate();
       const todayStr = now.toISOString().split('T')[0];
       
       const weekStart = new Date(now);
