@@ -73,6 +73,28 @@ function isInCurrentMonth(date: Date): boolean {
          date.getMonth() === now.getMonth();
 }
 
+// Formata valor com 2 casas decimais e arredondamento especial
+// Se 3º dígito ≤5, arredonda para baixo; se >5, arredonda para cima
+function formatBonusValue(value: number): string {
+  // Multiplica por 100 para trabalhar com os dígitos
+  const shifted = value * 100;
+  const thirdDigit = Math.floor((shifted * 10) % 10);
+  
+  // Se o 3º dígito for ≤5, arredonda para baixo (floor)
+  // Se for >5, arredonda para cima (ceil)
+  let rounded: number;
+  if (thirdDigit <= 5) {
+    rounded = Math.floor(shifted) / 100;
+  } else {
+    rounded = Math.ceil(shifted) / 100;
+  }
+  
+  return rounded.toLocaleString('pt-BR', { 
+    minimumFractionDigits: 2, 
+    maximumFractionDigits: 2 
+  });
+}
+
 const today = new Date();
 const todayStr = format(today, 'yyyy-MM-dd');
 const thirtyDaysAgo = new Date();
@@ -592,7 +614,7 @@ export default function Dashboard() {
                                   </Badge>
                                 </div>
                                 <span className={`text-lg font-bold ${goal.percentage >= 100 ? 'text-green-600 dark:text-green-400' : 'text-foreground'}`}>
-                                  R$ {goal.estimatedBonus.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  R$ {formatBonusValue(goal.estimatedBonus)}
                                 </span>
                               </div>
                               <p className="text-xs text-muted-foreground mt-1">
