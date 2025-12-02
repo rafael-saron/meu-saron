@@ -905,77 +905,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(goalsWithProgress);
       }
 
-      // Gerentes: mostrar meta individual própria + metas de equipe da loja
+      // Gerentes: mostrar metas agregadas semanais e mensais da sua loja (individual + team)
       if (user.role === 'gerente') {
-        const results: any[] = [];
-        
-        // Metas individuais da gerente
-        const managerIndividualGoals = currentGoals.filter(goal => 
-          goal.type === 'individual' && goal.sellerId === user.id
+        // Filtrar todas as metas das lojas do gerente (individual + team)
+        const managerStoreGoals = currentGoals.filter(goal => 
+          managerStoreIds.includes(goal.storeId)
         );
         
-        for (const goal of managerIndividualGoals) {
-          const progress = await calculateGoalProgress(goal, user.fullName, user);
-          
-          // Calcular bonificação especial para gerente
-          // Se atingiu a meta: % sobre suas vendas + vendas da equipe que bateu meta
-          // Se não atingiu: % sobre suas vendas apenas
-          if (user.bonusPercentageAchieved || user.bonusPercentageNotAchieved) {
-            const managerSales = progress.currentValue;
-            const percentage = progress.percentage;
+        if (managerStoreGoals.length === 0) {
+          return res.json([]);
+        }
+        
+        const weeklyGoals = managerStoreGoals.filter(g => g.period === 'weekly');
+        const monthlyGoals = managerStoreGoals.filter(g => g.period === 'monthly');
+        
+        const calculateManagerAggregatedProgress = async (goals: typeof managerStoreGoals, periodLabel: string) => {
+          if (goals.length === 0) return null;
+
+          let totalTarget = 0;
+          let totalCurrent = 0;
+          let earliestStart = goals[0].weekStart;
+          let latestEnd = goals[0].weekEnd;
+
+          for (const goal of goals) {
+            totalTarget += parseFloat(goal.targetValue);
             
-            if (percentage >= 100) {
-              // Gerente atingiu a meta - calcular vendas da equipe que também bateu
-              let teamBonusSales = 0;
-              
-              // Buscar metas individuais das vendedoras da mesma loja no mesmo período
-              const teamMemberGoals = currentGoals.filter(g => 
-                g.type === 'individual' && 
-                g.storeId === goal.storeId && 
-                g.sellerId !== user.id &&
-                g.period === goal.period
-              );
-              
-              for (const teamGoal of teamMemberGoals) {
-                const teamMember = await storage.getUser(teamGoal.sellerId!);
-                if (teamMember && teamMember.role === 'vendedor') {
-                  const teamMemberProgress = await calculateGoalProgress(teamGoal, teamMember.fullName, teamMember);
-                  // Só soma se a vendedora bateu sua meta
-                  if (teamMemberProgress.percentage >= 100) {
-                    teamBonusSales += teamMemberProgress.currentValue;
-                  }
-                }
-              }
-              
-              const bonusPercentage = parseFloat(user.bonusPercentageAchieved || '0');
-              progress.estimatedBonus = (managerSales + teamBonusSales) * (bonusPercentage / 100);
-              progress.bonusPercentageAchieved = bonusPercentage;
-              progress.bonusPercentageNotAchieved = user.bonusPercentageNotAchieved 
-                ? parseFloat(user.bonusPercentageNotAchieved) 
-                : null;
+            if (goal.weekStart < earliestStart) earliestStart = goal.weekStart;
+            if (goal.weekEnd > latestEnd) latestEnd = goal.weekEnd;
+
+            if (goal.type === 'individual' && goal.sellerId) {
+              const sellerUser = await storage.getUser(goal.sellerId);
+              const sales = await storage.getSales({
+                storeId: goal.storeId,
+                sellerName: sellerUser?.fullName,
+                startDate: goal.weekStart,
+                endDate: goal.weekEnd,
+              });
+              totalCurrent += sales.reduce((sum, sale) => {
+                const value = parseFloat(sale.totalValue);
+                return sum + (isNaN(value) ? 0 : value);
+              }, 0);
             } else {
-              // Gerente não atingiu a meta - só suas vendas com percentual menor
-              const bonusPercentage = parseFloat(user.bonusPercentageNotAchieved || '0');
-              progress.estimatedBonus = managerSales * (bonusPercentage / 100);
-              progress.bonusPercentageNotAchieved = bonusPercentage;
-              progress.bonusPercentageAchieved = user.bonusPercentageAchieved 
-                ? parseFloat(user.bonusPercentageAchieved) 
-                : null;
+              // Team goals: all store sales
+              const sales = await storage.getSales({
+                storeId: goal.storeId,
+                startDate: goal.weekStart,
+                endDate: goal.weekEnd,
+              });
+              totalCurrent += sales.reduce((sum, sale) => {
+                const value = parseFloat(sale.totalValue);
+                return sum + (isNaN(value) ? 0 : value);
+              }, 0);
             }
           }
+
+          const percentage = totalTarget > 0 ? (totalCurrent / totalTarget) * 100 : 0;
+
+          const [startYear, startMonth, startDay] = earliestStart.split('-').map(Number);
+          const [endYear, endMonth, endDay] = latestEnd.split('-').map(Number);
+          const startDateUtc = Date.UTC(startYear, startMonth - 1, startDay);
+          const endDateUtc = Date.UTC(endYear, endMonth - 1, endDay);
           
-          results.push(progress);
-        }
+          const totalDays = Math.max(1, Math.floor((endDateUtc - startDateUtc) / dayMs) + 1);
+          let elapsedDays: number;
+          let expectedPercentage: number;
+          
+          if (nowUtc < startDateUtc) {
+            elapsedDays = 0;
+            expectedPercentage = 0;
+          } else if (nowUtc > endDateUtc) {
+            elapsedDays = totalDays;
+            expectedPercentage = 100;
+          } else {
+            elapsedDays = Math.floor((nowUtc - startDateUtc) / dayMs) + 1;
+            expectedPercentage = (elapsedDays / totalDays) * 100;
+          }
+          
+          const isOnTrack = percentage >= expectedPercentage;
+
+          const storeLabel = managerStoreIds.length > 1 ? 'Suas Lojas' : (managerStoreIds[0] || user.storeId);
+
+          return {
+            id: `aggregated-${periodLabel}`,
+            storeId: storeLabel as string,
+            type: 'aggregated' as const,
+            period: periodLabel as 'weekly' | 'monthly',
+            sellerId: null,
+            sellerName: null,
+            weekStart: earliestStart,
+            weekEnd: latestEnd,
+            targetValue: totalTarget,
+            currentValue: totalCurrent,
+            percentage,
+            expectedPercentage,
+            isOnTrack,
+            elapsedDays,
+            totalDays,
+            goalsCount: goals.length,
+            bonusPercentageAchieved: null,
+            bonusPercentageNotAchieved: null,
+            estimatedBonus: null,
+          };
+        };
         
-        // Metas de equipe das lojas que a gerente gerencia
-        const teamGoals = currentGoals.filter(goal => 
-          goal.type === 'team' && managerStoreIds.includes(goal.storeId)
-        );
+        const results = [];
         
-        for (const goal of teamGoals) {
-          const progress = await calculateGoalProgress(goal);
-          results.push(progress);
-        }
+        const weeklyAggregated = await calculateManagerAggregatedProgress(weeklyGoals, 'weekly');
+        if (weeklyAggregated) results.push(weeklyAggregated);
+        
+        const monthlyAggregated = await calculateManagerAggregatedProgress(monthlyGoals, 'monthly');
+        if (monthlyAggregated) results.push(monthlyAggregated);
         
         return res.json(results);
       }

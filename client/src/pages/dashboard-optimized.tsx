@@ -295,7 +295,7 @@ export default function Dashboard() {
   const bonusSummaryUrl = `/api/bonus/summary?storeId=${encodeURIComponent(selectedStore || '')}`;
   const { data: bonusSummary, isLoading: loadingBonus, isError: bonusError } = useQuery<BonusSummary>({
     queryKey: [bonusSummaryUrl],
-    enabled: !!selectedStore && (user?.role === 'administrador' || user?.role === 'gerente') && activeTab === "resumo",
+    enabled: !!selectedStore && user?.role === 'administrador' && activeTab === "resumo",
     refetchInterval: 60000,
   });
 
@@ -658,7 +658,7 @@ export default function Dashboard() {
             </Card>
           )}
 
-          {(user?.role === 'administrador' || user?.role === 'gerente') && (
+          {user?.role === 'administrador' && (
             <Card data-testid="card-bonus-summary">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg font-display flex items-center gap-2">

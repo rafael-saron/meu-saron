@@ -33,6 +33,9 @@ export default function Clientes() {
     : (data?.Resultado || []);
 
   const filteredClients = useMemo(() => {
+    const normalizeDigits = (str: string) => str.replace(/\D/g, '');
+    const searchDigits = normalizeDigits(searchTerm);
+    
     let filtered = clientsList.filter((client: any) => {
       const nome = client.NomeRazaoSocial || client.Nome || '';
       const fantasia = client.Fantasia || client.NomeFantasia || '';
@@ -40,11 +43,14 @@ export default function Clientes() {
       const cpfCnpj = client.CpfCnpj || client.CPF || client.CNPJ || '';
       const celular = client.Celular || '';
       
+      const cpfCnpjDigits = normalizeDigits(cpfCnpj);
+      const celularDigits = normalizeDigits(celular);
+      
       return nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
         fantasia.toLowerCase().includes(searchTerm.toLowerCase()) ||
         email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        cpfCnpj.includes(searchTerm) ||
-        celular.includes(searchTerm);
+        (searchDigits && cpfCnpjDigits.includes(searchDigits)) ||
+        (searchDigits && celularDigits.includes(searchDigits));
     });
 
     if (sortOrder) {
