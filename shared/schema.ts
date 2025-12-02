@@ -104,6 +104,23 @@ export const saleItems = pgTable("sale_items", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Metas de caixa - baseadas em percentual de vendas em meios específicos
+export const cashierGoals = pgTable("cashier_goals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cashierId: varchar("cashier_id").notNull().references(() => users.id),
+  storeId: text("store_id").notNull(),
+  period: text("period").notNull().default("weekly"), // weekly ou monthly
+  weekStart: date("week_start").notNull(),
+  weekEnd: date("week_end").notNull(),
+  targetPercentage: decimal("target_percentage", { precision: 5, scale: 2 }).notNull(), // Meta de % das vendas em PIX/Débito/Dinheiro
+  bonusPercentageAchieved: decimal("bonus_percentage_achieved", { precision: 5, scale: 2 }).notNull(),
+  bonusPercentageNotAchieved: decimal("bonus_percentage_not_achieved", { precision: 5, scale: 2 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdById: varchar("created_by_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   sentMessages: many(chatMessages, { relationName: "sentMessages" }),
   receivedMessages: many(chatMessages, { relationName: "receivedMessages" }),
@@ -114,6 +131,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   salesGoals: many(salesGoals, { relationName: "sellerGoals" }),
   createdGoals: many(salesGoals, { relationName: "createdGoals" }),
   userStores: many(userStores),
+  cashierGoals: many(cashierGoals, { relationName: "cashierGoals" }),
+  createdCashierGoals: many(cashierGoals, { relationName: "createdCashierGoals" }),
 }));
 
 export const userStoresRelations = relations(userStores, ({ one }) => ({
@@ -187,6 +206,19 @@ export const saleItemsRelations = relations(saleItems, ({ one }) => ({
   }),
 }));
 
+export const cashierGoalsRelations = relations(cashierGoals, ({ one }) => ({
+  cashier: one(users, {
+    fields: [cashierGoals.cashierId],
+    references: [users.id],
+    relationName: "cashierGoals",
+  }),
+  createdBy: one(users, {
+    fields: [cashierGoals.createdById],
+    references: [users.id],
+    relationName: "createdCashierGoals",
+  }),
+}));
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -252,6 +284,18 @@ export const insertSaleItemSchema = createInsertSchema(saleItems).omit({
   totalPrice: z.string().or(z.number()).transform((val) => String(val)),
 });
 
+export const insertCashierGoalSchema = createInsertSchema(cashierGoals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  period: z.enum(["weekly", "monthly"]).default("weekly"),
+  storeId: z.enum(["saron1", "saron2", "saron3"]),
+  targetPercentage: z.string().or(z.number()).transform((val) => String(val)),
+  bonusPercentageAchieved: z.string().or(z.number()).transform((val) => String(val)),
+  bonusPercentageNotAchieved: z.string().or(z.number()).transform((val) => String(val)),
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UserStore = typeof userStores.$inferSelect;
@@ -270,8 +314,10 @@ export type AnonymousMessage = typeof anonymousMessages.$inferSelect;
 export type InsertAnonymousMessage = z.infer<typeof insertAnonymousMessageSchema>;
 export type SalesGoal = typeof salesGoals.$inferSelect;
 export type InsertSalesGoal = z.infer<typeof insertSalesGoalSchema>;
+export type CashierGoal = typeof cashierGoals.$inferSelect;
+export type InsertCashierGoal = z.infer<typeof insertCashierGoalSchema>;
 
-export type UserRole = "administrador" | "gerente" | "vendedor" | "financeiro";
+export type UserRole = "administrador" | "gerente" | "vendedor" | "financeiro" | "caixa";
 export type ScheduleEventType = "normal" | "extra";
 export type AnnouncementPriority = "normal" | "important" | "urgent";
 export type GoalType = "individual" | "team";

@@ -50,7 +50,7 @@ const userFormSchema = z.object({
   email: z.string().email("Email inválido"),
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres").optional(),
   fullName: z.string().min(3, "Nome completo obrigatório"),
-  role: z.enum(["administrador", "gerente", "vendedor", "financeiro"]),
+  role: z.enum(["administrador", "gerente", "vendedor", "financeiro", "caixa"]),
   storeId: z.enum(["saron1", "saron2", "saron3"]).nullable().optional(),
   cpf: z.string().optional(),
   bonusPercentageAchieved: z.string().optional(),
@@ -59,18 +59,20 @@ const userFormSchema = z.object({
 
 type UserFormData = z.infer<typeof userFormSchema>;
 
-const roleLabels = {
+const roleLabels: Record<string, string> = {
   administrador: "Administrador",
   gerente: "Gerente",
   vendedor: "Vendedor",
   financeiro: "Financeiro",
+  caixa: "Caixa",
 };
 
-const roleBadges = {
+const roleBadges: Record<string, string> = {
   administrador: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
   gerente: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
   vendedor: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
   financeiro: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
+  caixa: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400",
 };
 
 export default function Usuarios() {
@@ -450,6 +452,7 @@ export default function Usuarios() {
                         <SelectItem value="administrador">Administrador</SelectItem>
                         <SelectItem value="gerente">Gerente</SelectItem>
                         <SelectItem value="vendedor">Vendedor</SelectItem>
+                        <SelectItem value="caixa">Caixa</SelectItem>
                         <SelectItem value="financeiro">Financeiro</SelectItem>
                       </SelectContent>
                     </Select>

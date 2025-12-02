@@ -9,6 +9,7 @@ import {
   userStores,
   sales,
   saleItems,
+  cashierGoals,
   type User,
   type InsertUser,
   type ChatMessage,
@@ -27,6 +28,8 @@ import {
   type InsertSale,
   type SaleItem,
   type InsertSaleItem,
+  type CashierGoal,
+  type InsertCashierGoal,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, desc, count, gte, lte, sql } from "drizzle-orm";
@@ -90,6 +93,16 @@ export interface IStorage {
     endDate?: string;
   }): Promise<(Sale & { items: SaleItem[] })[]>;
   deleteSalesByPeriod(storeId: string, startDate: string, endDate: string): Promise<void>;
+  
+  getCashierGoals(filters?: {
+    id?: string;
+    cashierId?: string;
+    storeId?: string;
+    isActive?: boolean;
+  }): Promise<CashierGoal[]>;
+  createCashierGoal(goal: InsertCashierGoal): Promise<CashierGoal>;
+  updateCashierGoal(id: string, goal: Partial<CashierGoal>): Promise<CashierGoal | undefined>;
+  deleteCashierGoal(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -387,6 +400,53 @@ export class DatabaseStorage implements IStorage {
         lte(sales.saleDate, endDate)
       )
     );
+  }
+  
+  async getCashierGoals(filters?: {
+    id?: string;
+    cashierId?: string;
+    storeId?: string;
+    isActive?: boolean;
+  }): Promise<CashierGoal[]> {
+    let query = db.select().from(cashierGoals);
+    const conditions = [];
+    
+    if (filters?.id) {
+      conditions.push(eq(cashierGoals.id, filters.id));
+    }
+    if (filters?.cashierId) {
+      conditions.push(eq(cashierGoals.cashierId, filters.cashierId));
+    }
+    if (filters?.storeId) {
+      conditions.push(eq(cashierGoals.storeId, filters.storeId));
+    }
+    if (filters?.isActive !== undefined) {
+      conditions.push(eq(cashierGoals.isActive, filters.isActive));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return await query.orderBy(desc(cashierGoals.createdAt));
+  }
+  
+  async createCashierGoal(goal: InsertCashierGoal): Promise<CashierGoal> {
+    const [created] = await db.insert(cashierGoals).values(goal).returning();
+    return created;
+  }
+  
+  async updateCashierGoal(id: string, goal: Partial<CashierGoal>): Promise<CashierGoal | undefined> {
+    const [updated] = await db
+      .update(cashierGoals)
+      .set({ ...goal, updatedAt: new Date() })
+      .where(eq(cashierGoals.id, id))
+      .returning();
+    return updated;
+  }
+  
+  async deleteCashierGoal(id: string): Promise<void> {
+    await db.delete(cashierGoals).where(eq(cashierGoals.id, id));
   }
 }
 
