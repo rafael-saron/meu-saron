@@ -16,6 +16,7 @@ import {
   insertAnonymousMessageSchema,
   insertUserSchema,
   insertSalesGoalSchema,
+  insertCashierGoalSchema,
 } from "@shared/schema";
 
 interface WebSocketMessage {
@@ -1088,6 +1089,504 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error fetching dashboard goals:', error);
       res.status(500).json({ 
         error: "Erro ao buscar metas do dashboard",
+        message: error.message 
+      });
+    }
+  });
+
+  // Cashier goals routes
+  app.get("/api/cashier-goals", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const { storeId, cashierId, isActive } = req.query;
+      
+      const goals = await storage.getCashierGoals({
+        storeId: storeId as string | undefined,
+        cashierId: cashierId as string | undefined,
+        isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+      });
+      
+      res.json(goals);
+    } catch (error: any) {
+      console.error('Error fetching cashier goals:', error);
+      res.status(500).json({ 
+        error: "Erro ao buscar metas de caixa",
+        message: error.message 
+      });
+    }
+  });
+
+  app.post("/api/cashier-goals", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || (user.role !== 'administrador' && user.role !== 'gerente')) {
+        return res.status(403).json({ error: "Sem permissão para criar metas de caixa" });
+      }
+
+      const validatedData = insertCashierGoalSchema.parse({
+        ...req.body,
+        createdById: userId,
+      });
+      
+      const newGoal = await storage.createCashierGoal(validatedData);
+      res.json(newGoal);
+    } catch (error: any) {
+      console.error('Error creating cashier goal:', error);
+      res.status(400).json({ 
+        error: "Erro ao criar meta de caixa",
+        message: error.message 
+      });
+    }
+  });
+
+  app.patch("/api/cashier-goals/:id", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || (user.role !== 'administrador' && user.role !== 'gerente')) {
+        return res.status(403).json({ error: "Sem permissão para atualizar metas de caixa" });
+      }
+
+      const { id } = req.params;
+      const updatedGoal = await storage.updateCashierGoal(id, req.body);
+      res.json(updatedGoal);
+    } catch (error: any) {
+      console.error('Error updating cashier goal:', error);
+      res.status(400).json({ 
+        error: "Erro ao atualizar meta de caixa",
+        message: error.message 
+      });
+    }
+  });
+
+  app.delete("/api/cashier-goals/:id", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || (user.role !== 'administrador' && user.role !== 'gerente')) {
+        return res.status(403).json({ error: "Sem permissão para deletar metas de caixa" });
+      }
+
+      const { id } = req.params;
+      await storage.deleteCashierGoal(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Error deleting cashier goal:', error);
+      res.status(500).json({ 
+        error: "Erro ao deletar meta de caixa",
+        message: error.message 
+      });
+    }
+  });
+
+  // Cashier goals progress endpoint
+  app.get("/api/cashier-goals/progress", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const { goalId, storeId, weekStart, weekEnd } = req.query;
+      
+      // Get the goal(s) to calculate progress for
+      const goals = await storage.getCashierGoals({
+        id: goalId as string | undefined,
+        storeId: storeId as string | undefined,
+        isActive: true,
+      });
+
+      if (goals.length === 0) {
+        return res.json([]);
+      }
+
+      const results = [];
+
+      for (const goal of goals) {
+        // Get total store sales for the period
+        const storeSales = await storage.getSales({
+          storeId: goal.storeId,
+          startDate: goal.weekStart,
+          endDate: goal.weekEnd,
+        });
+
+        // Calculate total sales value
+        const totalStoreSales = storeSales.reduce((sum, sale) => sum + parseFloat(sale.totalValue), 0);
+
+        // Get sales by payment methods specified in the goal
+        const paymentMethods = goal.paymentMethods || [];
+        let targetMethodSales = 0;
+
+        for (const sale of storeSales) {
+          const paymentMethod = (sale.paymentMethod || '').toLowerCase().trim();
+          for (const method of paymentMethods) {
+            const targetMethod = method.toLowerCase().trim();
+            if (paymentMethod.includes(targetMethod) || 
+                (targetMethod === 'pix' && paymentMethod.includes('pix')) ||
+                (targetMethod === 'debito' && (paymentMethod.includes('debito') || paymentMethod.includes('débito'))) ||
+                (targetMethod === 'dinheiro' && paymentMethod.includes('dinheiro'))) {
+              targetMethodSales += parseFloat(sale.totalValue);
+              break;
+            }
+          }
+        }
+
+        // Calculate percentage achieved
+        const percentageAchieved = totalStoreSales > 0 
+          ? (targetMethodSales / totalStoreSales) * 100 
+          : 0;
+
+        // Calculate bonus based on whether target was met
+        const targetPercentage = parseFloat(goal.targetPercentage);
+        const isGoalMet = percentageAchieved >= targetPercentage;
+        const bonusPercentage = isGoalMet 
+          ? parseFloat(goal.bonusPercentageAchieved)
+          : parseFloat(goal.bonusPercentageNotAchieved);
+        
+        const bonusValue = (bonusPercentage / 100) * targetMethodSales;
+
+        // Custom rounding: ≤5 down, >5 up
+        const roundedBonus = (() => {
+          const factor = 100;
+          const shifted = bonusValue * factor;
+          const floored = Math.floor(shifted);
+          const decimal = shifted - floored;
+          if (decimal > 0.5) {
+            return (floored + 1) / factor;
+          }
+          return floored / factor;
+        })();
+
+        results.push({
+          goalId: goal.id,
+          cashierId: goal.cashierId,
+          storeId: goal.storeId,
+          periodType: goal.periodType,
+          weekStart: goal.weekStart,
+          weekEnd: goal.weekEnd,
+          paymentMethods: goal.paymentMethods,
+          targetPercentage,
+          percentageAchieved: Math.round(percentageAchieved * 100) / 100,
+          isGoalMet,
+          totalStoreSales,
+          targetMethodSales,
+          bonusPercentage,
+          bonusValue: roundedBonus,
+        });
+      }
+
+      res.json(results);
+    } catch (error: any) {
+      console.error('Error calculating cashier goal progress:', error);
+      res.status(500).json({ 
+        error: "Erro ao calcular progresso da meta de caixa",
+        message: error.message 
+      });
+    }
+  });
+
+  // Bonus summary endpoint for admin dashboard
+  app.get("/api/bonus/summary", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || (user.role !== 'administrador' && user.role !== 'gerente')) {
+        return res.status(403).json({ error: "Sem permissão" });
+      }
+
+      const { periodType, storeId } = req.query;
+      
+      const now = new Date();
+      const saoPauloOffset = -3 * 60; // UTC-3
+      const localNow = new Date(now.getTime() + (saoPauloOffset + now.getTimezoneOffset()) * 60000);
+      
+      // Calculate current period dates
+      const getWeekStart = (date: Date) => {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+        return new Date(d.setDate(diff));
+      };
+      
+      const getWeekEnd = (date: Date) => {
+        const start = getWeekStart(date);
+        return new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+      };
+      
+      const getMonthStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
+      const getMonthEnd = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0);
+      
+      const formatDate = (d: Date) => d.toISOString().split('T')[0];
+      
+      const weekStart = formatDate(getWeekStart(localNow));
+      const weekEnd = formatDate(getWeekEnd(localNow));
+      const monthStart = formatDate(getMonthStart(localNow));
+      const monthEnd = formatDate(getMonthEnd(localNow));
+
+      // Custom rounding function
+      const customRound = (value: number) => {
+        const factor = 100;
+        const shifted = value * factor;
+        const floored = Math.floor(shifted);
+        const decimal = shifted - floored;
+        if (decimal > 0.5) {
+          return (floored + 1) / factor;
+        }
+        return floored / factor;
+      };
+
+      // Get all active sales goals and calculate bonuses
+      const allGoals = await storage.getSalesGoals({ isActive: true });
+      const allUsers = await storage.getAllUsers();
+      const activeUsers = allUsers.filter(u => u.isActive);
+
+      // Calculate vendor and manager bonuses
+      const calculateUserBonus = async (goal: any, periodStart: string, periodEnd: string) => {
+        if (!goal.sellerId) return 0;
+        
+        const seller = activeUsers.find(u => u.id === goal.sellerId);
+        if (!seller) return 0;
+        
+        const sales = await storage.getSales({
+          storeId: goal.storeId,
+          sellerName: seller.fullName,
+          startDate: goal.weekStart,
+          endDate: goal.weekEnd,
+        });
+        
+        const totalSales = sales.reduce((sum, s) => sum + parseFloat(s.totalValue), 0);
+        const targetValue = parseFloat(goal.targetValue);
+        const percentage = targetValue > 0 ? (totalSales / targetValue) * 100 : 0;
+        const isGoalMet = percentage >= 100;
+        
+        const bonusPercentageAchieved = parseFloat(seller.bonusPercentageAchieved || "0");
+        const bonusPercentageNotAchieved = parseFloat(seller.bonusPercentageNotAchieved || "0");
+        const bonusPercentage = isGoalMet ? bonusPercentageAchieved : bonusPercentageNotAchieved;
+        
+        if (seller.role === 'vendedor' || seller.role === 'caixa') {
+          return customRound((bonusPercentage / 100) * totalSales);
+        }
+        
+        if (seller.role === 'gerente') {
+          // Manager gets bonus on own sales + sales of team members who hit their goals
+          let managerBonus = customRound((bonusPercentage / 100) * totalSales);
+          
+          // Get team members' goals in the same store
+          const teamGoals = allGoals.filter(g => 
+            g.storeId === goal.storeId && 
+            g.sellerId !== seller.id && 
+            g.type === 'individual' &&
+            g.weekStart === goal.weekStart &&
+            g.weekEnd === goal.weekEnd
+          );
+          
+          for (const teamGoal of teamGoals) {
+            const teamMember = activeUsers.find(u => u.id === teamGoal.sellerId);
+            if (!teamMember || teamMember.role !== 'vendedor') continue;
+            
+            const teamSales = await storage.getSales({
+              storeId: teamGoal.storeId,
+              sellerName: teamMember.fullName,
+              startDate: teamGoal.weekStart,
+              endDate: teamGoal.weekEnd,
+            });
+            
+            const teamTotalSales = teamSales.reduce((sum, s) => sum + parseFloat(s.totalValue), 0);
+            const teamTarget = parseFloat(teamGoal.targetValue);
+            const teamPercentage = teamTarget > 0 ? (teamTotalSales / teamTarget) * 100 : 0;
+            
+            if (teamPercentage >= 100) {
+              managerBonus += customRound((bonusPercentage / 100) * teamTotalSales);
+            }
+          }
+          
+          return managerBonus;
+        }
+        
+        return 0;
+      };
+
+      // Filter goals by period
+      const weeklyGoals = allGoals.filter(g => 
+        g.period === 'weekly' && 
+        g.weekStart >= weekStart && 
+        g.weekEnd <= weekEnd &&
+        (!storeId || storeId === 'all' || g.storeId === storeId)
+      );
+      
+      const monthlyGoals = allGoals.filter(g => 
+        g.period === 'monthly' && 
+        g.weekStart >= monthStart && 
+        g.weekEnd <= monthEnd &&
+        (!storeId || storeId === 'all' || g.storeId === storeId)
+      );
+
+      // Calculate weekly bonuses
+      let weeklyVendorBonus = 0;
+      let weeklyManagerBonus = 0;
+      
+      for (const goal of weeklyGoals) {
+        if (goal.sellerId) {
+          const seller = activeUsers.find(u => u.id === goal.sellerId);
+          if (seller) {
+            const bonus = await calculateUserBonus(goal, weekStart, weekEnd);
+            if (seller.role === 'vendedor') {
+              weeklyVendorBonus += bonus;
+            } else if (seller.role === 'gerente') {
+              weeklyManagerBonus += bonus;
+            }
+          }
+        }
+      }
+
+      // Calculate monthly bonuses
+      let monthlyVendorBonus = 0;
+      let monthlyManagerBonus = 0;
+      
+      for (const goal of monthlyGoals) {
+        if (goal.sellerId) {
+          const seller = activeUsers.find(u => u.id === goal.sellerId);
+          if (seller) {
+            const bonus = await calculateUserBonus(goal, monthStart, monthEnd);
+            if (seller.role === 'vendedor') {
+              monthlyVendorBonus += bonus;
+            } else if (seller.role === 'gerente') {
+              monthlyManagerBonus += bonus;
+            }
+          }
+        }
+      }
+
+      // Get cashier bonuses
+      const cashierGoals = await storage.getCashierGoals({ isActive: true });
+      
+      const weeklyCashierGoals = cashierGoals.filter(g => 
+        g.periodType === 'weekly' && 
+        g.weekStart >= weekStart && 
+        g.weekEnd <= weekEnd &&
+        (!storeId || storeId === 'all' || g.storeId === storeId)
+      );
+      
+      const monthlyCashierGoals = cashierGoals.filter(g => 
+        g.periodType === 'monthly' && 
+        g.weekStart >= monthStart && 
+        g.weekEnd <= monthEnd &&
+        (!storeId || storeId === 'all' || g.storeId === storeId)
+      );
+
+      let weeklyCashierBonus = 0;
+      for (const goal of weeklyCashierGoals) {
+        const storeSales = await storage.getSales({
+          storeId: goal.storeId,
+          startDate: goal.weekStart,
+          endDate: goal.weekEnd,
+        });
+        
+        const totalStoreSales = storeSales.reduce((sum, s) => sum + parseFloat(s.totalValue), 0);
+        const paymentMethods = goal.paymentMethods || [];
+        let targetMethodSales = 0;
+        
+        for (const sale of storeSales) {
+          const paymentMethod = (sale.paymentMethod || '').toLowerCase().trim();
+          for (const method of paymentMethods) {
+            const targetMethod = method.toLowerCase().trim();
+            if (paymentMethod.includes(targetMethod) || 
+                (targetMethod === 'pix' && paymentMethod.includes('pix')) ||
+                (targetMethod === 'debito' && (paymentMethod.includes('debito') || paymentMethod.includes('débito'))) ||
+                (targetMethod === 'dinheiro' && paymentMethod.includes('dinheiro'))) {
+              targetMethodSales += parseFloat(sale.totalValue);
+              break;
+            }
+          }
+        }
+        
+        const percentageAchieved = totalStoreSales > 0 ? (targetMethodSales / totalStoreSales) * 100 : 0;
+        const targetPercentage = parseFloat(goal.targetPercentage);
+        const isGoalMet = percentageAchieved >= targetPercentage;
+        const bonusPercentage = isGoalMet 
+          ? parseFloat(goal.bonusPercentageAchieved)
+          : parseFloat(goal.bonusPercentageNotAchieved);
+        
+        weeklyCashierBonus += customRound((bonusPercentage / 100) * targetMethodSales);
+      }
+
+      let monthlyCashierBonus = 0;
+      for (const goal of monthlyCashierGoals) {
+        const storeSales = await storage.getSales({
+          storeId: goal.storeId,
+          startDate: goal.weekStart,
+          endDate: goal.weekEnd,
+        });
+        
+        const totalStoreSales = storeSales.reduce((sum, s) => sum + parseFloat(s.totalValue), 0);
+        const paymentMethods = goal.paymentMethods || [];
+        let targetMethodSales = 0;
+        
+        for (const sale of storeSales) {
+          const paymentMethod = (sale.paymentMethod || '').toLowerCase().trim();
+          for (const method of paymentMethods) {
+            const targetMethod = method.toLowerCase().trim();
+            if (paymentMethod.includes(targetMethod) || 
+                (targetMethod === 'pix' && paymentMethod.includes('pix')) ||
+                (targetMethod === 'debito' && (paymentMethod.includes('debito') || paymentMethod.includes('débito'))) ||
+                (targetMethod === 'dinheiro' && paymentMethod.includes('dinheiro'))) {
+              targetMethodSales += parseFloat(sale.totalValue);
+              break;
+            }
+          }
+        }
+        
+        const percentageAchieved = totalStoreSales > 0 ? (targetMethodSales / totalStoreSales) * 100 : 0;
+        const targetPercentage = parseFloat(goal.targetPercentage);
+        const isGoalMet = percentageAchieved >= targetPercentage;
+        const bonusPercentage = isGoalMet 
+          ? parseFloat(goal.bonusPercentageAchieved)
+          : parseFloat(goal.bonusPercentageNotAchieved);
+        
+        monthlyCashierBonus += customRound((bonusPercentage / 100) * targetMethodSales);
+      }
+
+      res.json({
+        weekly: {
+          vendorBonus: customRound(weeklyVendorBonus),
+          managerBonus: customRound(weeklyManagerBonus),
+          cashierBonus: customRound(weeklyCashierBonus),
+          total: customRound(weeklyVendorBonus + weeklyManagerBonus + weeklyCashierBonus),
+          period: { start: weekStart, end: weekEnd },
+        },
+        monthly: {
+          vendorBonus: customRound(monthlyVendorBonus),
+          managerBonus: customRound(monthlyManagerBonus),
+          cashierBonus: customRound(monthlyCashierBonus),
+          total: customRound(monthlyVendorBonus + monthlyManagerBonus + monthlyCashierBonus),
+          period: { start: monthStart, end: monthEnd },
+        },
+      });
+    } catch (error: any) {
+      console.error('Error calculating bonus summary:', error);
+      res.status(500).json({ 
+        error: "Erro ao calcular resumo de bônus",
         message: error.message 
       });
     }

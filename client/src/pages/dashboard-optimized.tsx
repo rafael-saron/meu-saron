@@ -275,6 +275,30 @@ export default function Dashboard() {
     refetchInterval: 60000,
   });
 
+  interface BonusSummary {
+    weekly: {
+      vendorBonus: number;
+      managerBonus: number;
+      cashierBonus: number;
+      total: number;
+      period: { start: string; end: string };
+    };
+    monthly: {
+      vendorBonus: number;
+      managerBonus: number;
+      cashierBonus: number;
+      total: number;
+      period: { start: string; end: string };
+    };
+  }
+
+  const bonusSummaryUrl = `/api/bonus/summary?storeId=${encodeURIComponent(selectedStore || '')}`;
+  const { data: bonusSummary, isLoading: loadingBonus, isError: bonusError } = useQuery<BonusSummary>({
+    queryKey: [bonusSummaryUrl],
+    enabled: !!selectedStore && (user?.role === 'administrador' || user?.role === 'gerente') && activeTab === "resumo",
+    refetchInterval: 60000,
+  });
+
   interface SalesSummary {
     today: number;
     week: number;
@@ -628,6 +652,89 @@ export default function Dashboard() {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {(user?.role === 'administrador' || user?.role === 'gerente') && (
+            <Card data-testid="card-bonus-summary">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg font-display flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-primary" />
+                  Resumo de Bonificações
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loadingBonus ? (
+                  <div className="space-y-4">
+                    <Skeleton className="h-24" />
+                    <Skeleton className="h-24" />
+                  </div>
+                ) : bonusError ? (
+                  <div className="text-sm text-muted-foreground text-center py-4">
+                    Erro ao carregar resumo de bonificações
+                  </div>
+                ) : !bonusSummary ? (
+                  <div className="text-sm text-muted-foreground text-center py-4">
+                    Selecione uma loja para visualizar as bonificações
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="p-4 rounded-lg border bg-card">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium text-muted-foreground">Bonificação Semanal</span>
+                        <Badge variant="outline" className="text-xs">
+                          {format(new Date(bonusSummary.weekly.period.start + 'T00:00:00'), 'dd/MM', { locale: ptBR })} - {format(new Date(bonusSummary.weekly.period.end + 'T00:00:00'), 'dd/MM', { locale: ptBR })}
+                        </Badge>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Vendedores</span>
+                          <span className="font-medium">R$ {formatBonusValue(bonusSummary.weekly.vendorBonus)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Gerentes</span>
+                          <span className="font-medium">R$ {formatBonusValue(bonusSummary.weekly.managerBonus)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Caixas</span>
+                          <span className="font-medium">R$ {formatBonusValue(bonusSummary.weekly.cashierBonus)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm pt-2 border-t border-border/50">
+                          <span className="font-semibold">Total Semanal</span>
+                          <span className="font-bold text-primary">R$ {formatBonusValue(bonusSummary.weekly.total)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="p-4 rounded-lg border bg-card">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium text-muted-foreground">Bonificação Mensal</span>
+                        <Badge variant="outline" className="text-xs">
+                          {format(new Date(bonusSummary.monthly.period.start + 'T00:00:00'), 'dd/MM', { locale: ptBR })} - {format(new Date(bonusSummary.monthly.period.end + 'T00:00:00'), 'dd/MM', { locale: ptBR })}
+                        </Badge>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Vendedores</span>
+                          <span className="font-medium">R$ {formatBonusValue(bonusSummary.monthly.vendorBonus)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Gerentes</span>
+                          <span className="font-medium">R$ {formatBonusValue(bonusSummary.monthly.managerBonus)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Caixas</span>
+                          <span className="font-medium">R$ {formatBonusValue(bonusSummary.monthly.cashierBonus)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm pt-2 border-t border-border/50">
+                          <span className="font-semibold">Total Mensal</span>
+                          <span className="font-bold text-primary">R$ {formatBonusValue(bonusSummary.monthly.total)}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>

@@ -1,4 +1,4 @@
-import { Home, Users, ShoppingBag, Package, DollarSign, Calendar, Bell, MessageCircle, Send, LayoutDashboard, UserCog, LogOut, Target } from "lucide-react";
+import { Home, Users, ShoppingBag, Package, DollarSign, Calendar, Bell, MessageCircle, Send, LayoutDashboard, UserCog, LogOut, Target, Wallet } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -20,12 +20,13 @@ import { useUnreadCount } from "@/hooks/use-unread-count";
 import logoUrl from "@assets/Logo Saron_1763050286995.png";
 
 const allMenuItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard, roles: ["administrador", "gerente", "vendedor", "financeiro"] },
+  { title: "Dashboard", url: "/", icon: LayoutDashboard, roles: ["administrador", "gerente", "vendedor", "financeiro", "caixa"] },
   { title: "Clientes", url: "/clientes", icon: Users, roles: ["administrador", "gerente"] },
   { title: "Vendas", url: "/vendas", icon: ShoppingBag, roles: ["administrador", "gerente"] },
   { title: "Produtos", url: "/produtos", icon: Package, roles: ["administrador", "gerente"] },
   { title: "Contas a Pagar", url: "/contas-pagar", icon: DollarSign, roles: ["administrador", "financeiro"] },
   { title: "Metas", url: "/metas", icon: Target, roles: ["administrador", "gerente"] },
+  { title: "Metas de Caixa", url: "/metas-caixa", icon: Wallet, roles: ["administrador", "gerente"] },
 ];
 
 const communicationItems = [
@@ -48,11 +49,12 @@ export function AppSidebar() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const roleLabels = {
+  const roleLabels: Record<string, string> = {
     administrador: "Administrador",
     gerente: "Gerente",
     vendedor: "Vendedor",
     financeiro: "Financeiro",
+    caixa: "Caixa",
   };
 
   const userRole = user?.role || "vendedor";

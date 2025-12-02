@@ -93,6 +93,7 @@ export class SalesSyncService {
               clientName: dapicSale.NomeCliente || dapicSale.Cliente || null,
               storeId: storeId as "saron1" | "saron2" | "saron3",
               status: dapicSale.Status || 'Finalizado',
+              paymentMethod: dapicSale.FormaPagamento || dapicSale.MeioPagamento || dapicSale.TipoPagamento || null,
             };
 
             const items: InsertSaleItem[] = [];

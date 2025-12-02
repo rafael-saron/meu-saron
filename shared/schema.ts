@@ -89,6 +89,7 @@ export const sales = pgTable("sales", {
   clientName: text("client_name"),
   storeId: text("store_id").notNull(),
   status: text("status").notNull(),
+  paymentMethod: text("payment_method"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -109,10 +110,11 @@ export const cashierGoals = pgTable("cashier_goals", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   cashierId: varchar("cashier_id").notNull().references(() => users.id),
   storeId: text("store_id").notNull(),
-  period: text("period").notNull().default("weekly"), // weekly ou monthly
+  periodType: text("period_type").notNull().default("weekly"), // weekly ou monthly
   weekStart: date("week_start").notNull(),
   weekEnd: date("week_end").notNull(),
-  targetPercentage: decimal("target_percentage", { precision: 5, scale: 2 }).notNull(), // Meta de % das vendas em PIX/Débito/Dinheiro
+  paymentMethods: text("payment_methods").array().notNull(), // Meios de pagamento: PIX, Débito, Dinheiro
+  targetPercentage: decimal("target_percentage", { precision: 5, scale: 2 }).notNull(), // Meta de % das vendas nesses meios
   bonusPercentageAchieved: decimal("bonus_percentage_achieved", { precision: 5, scale: 2 }).notNull(),
   bonusPercentageNotAchieved: decimal("bonus_percentage_not_achieved", { precision: 5, scale: 2 }).notNull(),
   isActive: boolean("is_active").notNull().default(true),
@@ -289,8 +291,9 @@ export const insertCashierGoalSchema = createInsertSchema(cashierGoals).omit({
   createdAt: true,
   updatedAt: true,
 }).extend({
-  period: z.enum(["weekly", "monthly"]).default("weekly"),
+  periodType: z.enum(["weekly", "monthly"]).default("weekly"),
   storeId: z.enum(["saron1", "saron2", "saron3"]),
+  paymentMethods: z.array(z.string()).min(1, "Selecione pelo menos um meio de pagamento"),
   targetPercentage: z.string().or(z.number()).transform((val) => String(val)),
   bonusPercentageAchieved: z.string().or(z.number()).transform((val) => String(val)),
   bonusPercentageNotAchieved: z.string().or(z.number()).transform((val) => String(val)),
