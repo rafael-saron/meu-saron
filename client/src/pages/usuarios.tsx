@@ -487,7 +487,7 @@ export default function Usuarios() {
                 )}
               />
 
-              {form.watch("role") === "vendedor" && (
+              {(form.watch("role") === "vendedor" || form.watch("role") === "gerente") && (
                 <>
                   <FormField
                     control={form.control}
@@ -507,7 +507,10 @@ export default function Usuarios() {
                           />
                         </FormControl>
                         <p className="text-xs text-muted-foreground">
-                          Percentual de bônus sobre vendas quando a meta é atingida
+                          {form.watch("role") === "gerente" 
+                            ? "Percentual sobre suas vendas + vendas da equipe que bateu meta"
+                            : "Percentual de bônus sobre vendas quando a meta é atingida"
+                          }
                         </p>
                         <FormMessage />
                       </FormItem>
@@ -532,7 +535,10 @@ export default function Usuarios() {
                           />
                         </FormControl>
                         <p className="text-xs text-muted-foreground">
-                          Percentual de bônus sobre vendas quando a meta não é atingida
+                          {form.watch("role") === "gerente"
+                            ? "Percentual sobre suas vendas quando a meta não é atingida"
+                            : "Percentual de bônus sobre vendas quando a meta não é atingida"
+                          }
                         </p>
                         <FormMessage />
                       </FormItem>
