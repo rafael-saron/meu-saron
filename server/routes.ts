@@ -1363,11 +1363,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Calculate vendor and manager bonuses
       const calculateUserBonus = async (goal: any, periodStart: string, periodEnd: string) => {
-        if (!goal.sellerId) return 0;
+        console.log('[BonusSummary] calculateUserBonus called:', { goalId: goal.id, sellerId: goal.sellerId });
+        if (!goal.sellerId) {
+          console.log('[BonusSummary] No sellerId, returning 0');
+          return 0;
+        }
         
         const seller = activeUsers.find(u => u.id === goal.sellerId);
-        if (!seller) return 0;
+        if (!seller) {
+          console.log('[BonusSummary] Seller not found for id:', goal.sellerId);
+          return 0;
+        }
         
+        console.log('[BonusSummary] Fetching sales:', { storeId: goal.storeId, sellerName: seller.fullName, startDate: goal.weekStart, endDate: goal.weekEnd });
         const sales = await storage.getSales({
           storeId: goal.storeId,
           sellerName: seller.fullName,
@@ -1375,6 +1383,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           endDate: goal.weekEnd,
         });
         
+        console.log('[BonusSummary] Sales found:', sales.length);
         const totalSales = sales.reduce((sum, s) => sum + parseFloat(s.totalValue), 0);
         const targetValue = parseFloat(goal.targetValue);
         const percentage = targetValue > 0 ? (totalSales / targetValue) * 100 : 0;
@@ -1383,6 +1392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const bonusPercentageAchieved = parseFloat(seller.bonusPercentageAchieved || "0");
         const bonusPercentageNotAchieved = parseFloat(seller.bonusPercentageNotAchieved || "0");
         const bonusPercentage = isGoalMet ? bonusPercentageAchieved : bonusPercentageNotAchieved;
+        console.log('[BonusSummary] Bonus calc:', { totalSales, targetValue, percentage, isGoalMet, bonusPercentage });
         
         if (seller.role === 'vendedor' || seller.role === 'caixa') {
           return customRound((bonusPercentage / 100) * totalSales);
@@ -1427,30 +1437,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return 0;
       };
 
-      // Filter goals by period
-      const weeklyGoals = allGoals.filter(g => 
-        g.period === 'weekly' && 
-        g.weekStart >= weekStart && 
-        g.weekEnd <= weekEnd &&
-        (!storeId || storeId === 'all' || g.storeId === storeId)
-      );
+      // Filter goals by period - check if goal period overlaps with current period
+      console.log('[BonusSummary] Current periods:', { weekStart, weekEnd, monthStart, monthEnd });
+      console.log('[BonusSummary] All goals count:', allGoals.length);
+      console.log('[BonusSummary] Goals sample:', allGoals.slice(0, 3).map(g => ({ 
+        id: g.id, 
+        period: g.period, 
+        weekStart: g.weekStart, 
+        weekEnd: g.weekEnd,
+        sellerId: g.sellerId,
+        type: g.type 
+      })));
       
-      const monthlyGoals = allGoals.filter(g => 
-        g.period === 'monthly' && 
-        g.weekStart >= monthStart && 
-        g.weekEnd <= monthEnd &&
-        (!storeId || storeId === 'all' || g.storeId === storeId)
-      );
+      // For weekly goals, check if goal's date range overlaps with current week
+      // Accept 'all', 'todas', or empty as "all stores"
+      const isAllStores = !storeId || storeId === 'all' || storeId === 'todas';
+      console.log('[BonusSummary] storeId filter:', { storeId, isAllStores });
+      
+      const weeklyGoals = allGoals.filter(g => {
+        if (g.period !== 'weekly') return false;
+        if (!isAllStores && g.storeId !== storeId) return false;
+        // Check if periods overlap
+        const goalStart = g.weekStart;
+        const goalEnd = g.weekEnd;
+        return goalStart <= weekEnd && goalEnd >= weekStart;
+      });
+      
+      // For monthly goals, check if goal's date range overlaps with current month
+      const monthlyGoals = allGoals.filter(g => {
+        if (g.period !== 'monthly') return false;
+        if (!isAllStores && g.storeId !== storeId) return false;
+        // Check if periods overlap
+        const goalStart = g.weekStart;
+        const goalEnd = g.weekEnd;
+        return goalStart <= monthEnd && goalEnd >= monthStart;
+      });
+      
+      console.log('[BonusSummary] Filtered weekly goals:', weeklyGoals.length);
+      console.log('[BonusSummary] Filtered monthly goals:', monthlyGoals.length);
 
       // Calculate weekly bonuses
       let weeklyVendorBonus = 0;
       let weeklyManagerBonus = 0;
       
+      console.log('[BonusSummary] Processing weekly goals...');
       for (const goal of weeklyGoals) {
+        console.log('[BonusSummary] Weekly goal:', { 
+          id: goal.id, 
+          sellerId: goal.sellerId, 
+          type: goal.type,
+          weekStart: goal.weekStart,
+          weekEnd: goal.weekEnd
+        });
         if (goal.sellerId) {
           const seller = activeUsers.find(u => u.id === goal.sellerId);
+          console.log('[BonusSummary] Found seller:', seller ? { id: seller.id, name: seller.fullName, role: seller.role } : null);
           if (seller) {
             const bonus = await calculateUserBonus(goal, weekStart, weekEnd);
+            console.log('[BonusSummary] Calculated bonus:', { sellerId: goal.sellerId, bonus });
             if (seller.role === 'vendedor') {
               weeklyVendorBonus += bonus;
             } else if (seller.role === 'gerente') {
@@ -1459,6 +1503,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       }
+      console.log('[BonusSummary] Weekly totals:', { weeklyVendorBonus, weeklyManagerBonus });
 
       // Calculate monthly bonuses
       let monthlyVendorBonus = 0;
@@ -1481,19 +1526,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get cashier bonuses
       const cashierGoals = await storage.getCashierGoals({ isActive: true });
       
-      const weeklyCashierGoals = cashierGoals.filter(g => 
-        g.periodType === 'weekly' && 
-        g.weekStart >= weekStart && 
-        g.weekEnd <= weekEnd &&
-        (!storeId || storeId === 'all' || g.storeId === storeId)
-      );
+      const weeklyCashierGoals = cashierGoals.filter(g => {
+        if (g.periodType !== 'weekly') return false;
+        if (!isAllStores && g.storeId !== storeId) return false;
+        const goalStart = g.weekStart;
+        const goalEnd = g.weekEnd;
+        return goalStart <= weekEnd && goalEnd >= weekStart;
+      });
       
-      const monthlyCashierGoals = cashierGoals.filter(g => 
-        g.periodType === 'monthly' && 
-        g.weekStart >= monthStart && 
-        g.weekEnd <= monthEnd &&
-        (!storeId || storeId === 'all' || g.storeId === storeId)
-      );
+      const monthlyCashierGoals = cashierGoals.filter(g => {
+        if (g.periodType !== 'monthly') return false;
+        if (!isAllStores && g.storeId !== storeId) return false;
+        const goalStart = g.weekStart;
+        const goalEnd = g.weekEnd;
+        return goalStart <= monthEnd && goalEnd >= monthStart;
+      });
 
       let weeklyCashierBonus = 0;
       for (const goal of weeklyCashierGoals) {
