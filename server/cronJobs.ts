@@ -1,6 +1,9 @@
 import cron from "node-cron";
 import { salesSyncService } from "./salesSync";
 
+// Track if cron jobs have been initialized to prevent duplicate timers on hot reload
+let cronInitialized = false;
+
 async function syncTodaySales(triggerSource: string) {
   const today = new Date().toISOString().split('T')[0];
   console.log(`[CRON] ${triggerSource} - Sincronizando vendas de hoje (${today})...`);
@@ -28,6 +31,13 @@ async function syncTodaySales(triggerSource: string) {
 }
 
 export function initializeCronJobs() {
+  // Prevent duplicate initialization on hot reload
+  if (cronInitialized) {
+    console.log('[CRON] Cron jobs already initialized, skipping...');
+    return;
+  }
+  cronInitialized = true;
+  
   // Sincronização a cada hora durante horário comercial (8h às 19h)
   // Roda nos minutos 5, 35 para evitar picos de API
   cron.schedule('5,35 8-19 * * 1-6', async () => {
@@ -71,8 +81,19 @@ export function initializeCronJobs() {
   
   console.log('[CRON] Sincronização mensal configurada: todo dia 1 às 00:05');
   
-  // Sincronização inicial ao iniciar o servidor (vendas de hoje)
-  setTimeout(() => {
-    syncTodaySales('Sync inicial');
-  }, 5000); // Aguarda 5 segundos após o servidor iniciar
+  // Skip initial sync in production to allow health checks to pass first
+  // In production, data will be synced by the hourly cron job
+  const isProduction = process.env.NODE_ENV === 'production';
+  const skipInitialSync = process.env.SKIP_INITIAL_SYNC === 'true';
+  
+  if (isProduction || skipInitialSync) {
+    console.log('[CRON] Sincronização inicial pulada (ambiente de produção ou SKIP_INITIAL_SYNC=true)');
+    console.log('[CRON] Dados serão sincronizados pelo próximo job agendado');
+  } else {
+    // In development, delay initial sync by 30 seconds
+    console.log('[CRON] Sincronização inicial agendada para 30 segundos após o início');
+    setTimeout(() => {
+      syncTodaySales('Sync inicial');
+    }, 30000);
+  }
 }

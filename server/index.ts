@@ -7,6 +7,18 @@ import { initializeCronJobs } from "./cronJobs";
 
 const app = express();
 
+// CRITICAL: Health check endpoint must be registered FIRST, before any middleware
+// This ensures the endpoint responds immediately for deployment health checks
+// without waiting for database connections or external services
+app.get("/health", (_req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Also support root-level health check for some deployment systems
+app.get("/_health", (_req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
@@ -93,13 +105,6 @@ async function ensureAdminUser() {
     console.error("Error ensuring admin user:", error);
   }
 }
-
-// Health check endpoint - registered OUTSIDE async IIFE to ensure it's always available
-// even if server initialization fails. Must be registered early to avoid being
-// overridden by Vite's catch-all handler in development mode.
-app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
-});
 
 (async () => {
   try {
