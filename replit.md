@@ -53,6 +53,13 @@ The system is built with a modern stack:
     - Role-specific display: individual goals for sellers, aggregated for managers/admins.
     - Calculates "on-track" status based on actual vs. expected percentage.
     - Auto-refreshes every 60 seconds.
+- **Weekly Bonus Payment Summary (`/pagamento-bonus`)**:
+    - **Purpose**: Financial panel for Monday bonus payments (for previous work week).
+    - **Access Control**: Restricted to 'administrador' and 'financeiro' roles only.
+    - **API Endpoint**: `/api/bonus/payment-summary` returns previous week's bonuses.
+    - **Features**: Summary cards by role (vendors, managers, cashiers), breakdown by store, detailed individual tables with goal achievement status.
+    - **Date Calculation**: Uses São Paulo timezone (UTC-3), calculates previous week (Mon-Sun).
+    - **Auto-refresh**: Updates every 60 seconds.
 - **Multi-Store Manager Support**: Backend APIs for assigning multiple stores to managers via `userStores` junction table.
 - **Data Normalization**: Robust currency normalization for Dapic data.
 
