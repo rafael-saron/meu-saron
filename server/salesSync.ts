@@ -1,6 +1,6 @@
 import { storage } from "./storage";
 import { dapicService } from "./dapic";
-import type { InsertSale, InsertSaleItem } from "@shared/schema";
+import type { InsertSale, InsertSaleItem, InsertSaleReceipt } from "@shared/schema";
 
 interface SyncResult {
   success: boolean;
@@ -177,7 +177,28 @@ export class SalesSyncService {
               }
             }
 
-            await storage.createSaleWithItems(sale, items);
+            // Extract individual receipts with their specific values
+            const receipts: InsertSaleReceipt[] = [];
+            
+            if (dapicSale.Recebimentos && Array.isArray(dapicSale.Recebimentos)) {
+              for (const recebimento of dapicSale.Recebimentos) {
+                const rawMethod = recebimento.FormaPagamento || '';
+                const normalizedMethod = this.normalizePaymentMethod(rawMethod);
+                const grossValue = parseFloat(recebimento.ValorBruto || recebimento.Valor || 0);
+                const netValue = parseFloat(recebimento.Valor || recebimento.ValorBruto || 0);
+                
+                if (normalizedMethod && grossValue > 0) {
+                  receipts.push({
+                    saleId: '',
+                    paymentMethod: normalizedMethod,
+                    grossValue: String(grossValue),
+                    netValue: String(netValue),
+                  });
+                }
+              }
+            }
+
+            await storage.createSaleWithItemsAndReceipts(sale, items, receipts);
             salesCount++;
           } catch (itemError: any) {
             console.error(`[SalesSync] Erro ao processar venda ${dapicSale.Codigo}:`, itemError.message);
