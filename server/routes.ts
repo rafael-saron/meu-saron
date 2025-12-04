@@ -1269,22 +1269,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Calculate total sales value
         const totalStoreSales = storeSales.reduce((sum, sale) => sum + parseFloat(sale.totalValue), 0);
 
-        // Get sales by payment methods specified in the goal
+        // Get receipts by payment methods specified in the goal
+        // This uses the saleReceipts table which has the actual value per payment method
         const paymentMethods = goal.paymentMethods || [];
+        const receiptTotals = await storage.getReceiptsByPaymentMethod(
+          goal.storeId,
+          goal.weekStart,
+          goal.weekEnd,
+          paymentMethods
+        );
+        
+        // Sum all target method sales from receipts (using grossValue)
         let targetMethodSales = 0;
-
-        for (const sale of storeSales) {
-          const paymentMethod = (sale.paymentMethod || '').toLowerCase().trim();
-          for (const method of paymentMethods) {
-            const targetMethod = method.toLowerCase().trim();
-            if (paymentMethod.includes(targetMethod) || 
-                (targetMethod === 'pix' && paymentMethod.includes('pix')) ||
-                (targetMethod === 'debito' && (paymentMethod.includes('debito') || paymentMethod.includes('débito'))) ||
-                (targetMethod === 'dinheiro' && paymentMethod.includes('dinheiro'))) {
-              targetMethodSales += parseFloat(sale.totalValue);
-              break;
-            }
-          }
+        for (const receipt of receiptTotals) {
+          targetMethodSales += receipt.totalGross;
         }
 
         // Calculate percentage achieved
