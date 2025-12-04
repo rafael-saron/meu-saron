@@ -46,6 +46,7 @@ interface SalesGoalBonus {
   bonusPercentage: number;
   bonusValue: number;
   goalType: string;
+  managerTeamBonus?: number;
 }
 
 interface CashierGoalBonus {
@@ -213,18 +214,22 @@ function SalesGoalsTable({ goals, storeFilter }: { goals: SalesGoalBonus[]; stor
     );
   }
 
+  const hasManagers = filteredGoals.some(g => g.role === 'gerente');
+
   return (
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Colaborador</TableHead>
           <TableHead>Cargo</TableHead>
+          <TableHead>Tipo Meta</TableHead>
           <TableHead>Loja</TableHead>
           <TableHead className="text-right">Meta</TableHead>
           <TableHead className="text-right">Realizado</TableHead>
           <TableHead className="text-right">%</TableHead>
           <TableHead className="text-center">Status</TableHead>
           <TableHead className="text-right">% Bônus</TableHead>
+          {hasManagers && <TableHead className="text-right">Bônus Equipe</TableHead>}
           <TableHead className="text-right">Valor Bônus</TableHead>
         </TableRow>
       </TableHeader>
@@ -235,6 +240,11 @@ function SalesGoalsTable({ goals, storeFilter }: { goals: SalesGoalBonus[]; stor
             <TableCell>
               <Badge variant={goal.role === 'gerente' ? 'default' : 'secondary'}>
                 {goal.role === 'gerente' ? 'Gerente' : 'Vendedor'}
+              </Badge>
+            </TableCell>
+            <TableCell>
+              <Badge variant="outline" className="text-xs">
+                {goal.goalType === 'team' ? 'Conjunta' : 'Individual'}
               </Badge>
             </TableCell>
             <TableCell>{goal.storeName}</TableCell>
@@ -253,6 +263,15 @@ function SalesGoalsTable({ goals, storeFilter }: { goals: SalesGoalBonus[]; stor
               )}
             </TableCell>
             <TableCell className="text-right">{formatPercentage(goal.bonusPercentage)}</TableCell>
+            {hasManagers && (
+              <TableCell className="text-right">
+                {goal.role === 'gerente' && goal.managerTeamBonus ? (
+                  <span className="text-blue-600">{formatCurrency(goal.managerTeamBonus)}</span>
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
+              </TableCell>
+            )}
             <TableCell className="text-right font-semibold">
               {formatCurrency(goal.bonusValue)}
             </TableCell>

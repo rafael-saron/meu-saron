@@ -1785,11 +1785,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         bonusPercentage: number;
         bonusValue: number;
         goalType: string;
+        managerTeamBonus?: number;
       }> = [];
 
-      for (const goal of weeklyGoals) {
-        if (!goal.sellerId) continue;
-        
+      // Separate individual and team goals
+      const individualGoals = weeklyGoals.filter(g => g.type === 'individual' && g.sellerId);
+      const teamGoals = weeklyGoals.filter(g => g.type === 'team' && !g.sellerId);
+
+      // Track which vendors met their individual goals (for manager bonus calculation)
+      const vendorsMeetingGoals: Map<string, { sellerId: string; sales: number; storeId: string }> = new Map();
+
+      // Process INDIVIDUAL goals first
+      for (const goal of individualGoals) {
         const seller = activeUsers.find(u => u.id === goal.sellerId);
         if (!seller) continue;
 
@@ -1810,7 +1817,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const bonusPercentage = isGoalMet ? bonusPercentageAchieved : bonusPercentageNotAchieved;
         
         let bonusValue = 0;
-        if (seller.role === 'vendedor' || seller.role === 'gerente') {
+        let managerTeamBonus = 0;
+
+        if (seller.role === 'vendedor') {
+          bonusValue = customRound((bonusPercentage / 100) * totalSales);
+          // Track vendors who met their goals
+          if (isGoalMet) {
+            vendorsMeetingGoals.set(seller.id, { sellerId: seller.id, sales: totalSales, storeId: goal.storeId });
+          }
+        } else if (seller.role === 'gerente') {
+          // Manager base bonus on own sales
           bonusValue = customRound((bonusPercentage / 100) * totalSales);
         }
 
@@ -1827,7 +1843,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
           bonusPercentage,
           bonusValue,
           goalType: goal.type,
+          managerTeamBonus: 0,
         });
+      }
+
+      // Now add manager team bonus: 0.2% of sales from vendors who met their goals
+      for (const detail of bonusDetails) {
+        if (detail.role === 'gerente') {
+          let teamBonusValue = 0;
+          // Find vendors in the same store who met their goals
+          const vendorEntries = Array.from(vendorsMeetingGoals.entries());
+          for (const [vendorId, vendorData] of vendorEntries) {
+            if (vendorData.storeId === detail.storeId) {
+              // Add 0.2% of this vendor's sales as manager team bonus
+              teamBonusValue += customRound((0.2 / 100) * vendorData.sales);
+            }
+          }
+          detail.managerTeamBonus = teamBonusValue;
+          detail.bonusValue = customRound(detail.bonusValue + teamBonusValue);
+        }
+      }
+
+      // Process TEAM goals - for stores with team goals, all vendors/managers get bonus on total store sales
+      for (const teamGoal of teamGoals) {
+        // Get all sales for this store in the period
+        const storeSales = await storage.getSales({
+          storeId: teamGoal.storeId,
+          startDate: teamGoal.weekStart,
+          endDate: teamGoal.weekEnd,
+        });
+        
+        const totalStoreSales = storeSales.reduce((sum, s) => sum + parseFloat(s.totalValue), 0);
+        const targetValue = parseFloat(teamGoal.targetValue);
+        const percentage = targetValue > 0 ? (totalStoreSales / targetValue) * 100 : 0;
+        const isGoalMet = percentage >= 100;
+
+        // Find all vendors and managers assigned to this store
+        const storeUsers = activeUsers.filter(u => 
+          u.storeId === teamGoal.storeId && 
+          (u.role === 'vendedor' || u.role === 'gerente')
+        );
+
+        for (const storeUser of storeUsers) {
+          // Skip if this user already has an individual goal for the same period
+          const hasIndividualGoal = bonusDetails.some(d => 
+            d.id === storeUser.id && 
+            d.storeId === teamGoal.storeId
+          );
+          if (hasIndividualGoal) continue;
+
+          const bonusPercentageAchieved = parseFloat(storeUser.bonusPercentageAchieved || "0");
+          const bonusPercentageNotAchieved = parseFloat(storeUser.bonusPercentageNotAchieved || "0");
+          const bonusPercentage = isGoalMet ? bonusPercentageAchieved : bonusPercentageNotAchieved;
+          
+          // For team goals, bonus is calculated on TOTAL STORE SALES
+          const bonusValue = customRound((bonusPercentage / 100) * totalStoreSales);
+
+          bonusDetails.push({
+            id: storeUser.id,
+            name: storeUser.fullName,
+            role: storeUser.role,
+            storeId: teamGoal.storeId,
+            storeName: storeNames[teamGoal.storeId] || teamGoal.storeId,
+            targetValue,
+            actualSales: customRound(totalStoreSales),
+            percentage: customRound(percentage),
+            isGoalMet,
+            bonusPercentage,
+            bonusValue,
+            goalType: 'team',
+            managerTeamBonus: 0,
+          });
+        }
       }
 
       // Get cashier goals for previous week
