@@ -2045,6 +2045,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Financial daily revenue comparison endpoint
+  app.get("/api/financial/daily-revenue", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || (user.role !== 'administrador' && user.role !== 'financeiro')) {
+        return res.status(403).json({ error: "Sem permissão - apenas administrador e financeiro" });
+      }
+
+      const { storeId, month, year, compareYears } = req.query;
+      
+      const now = new Date();
+      const currentMonth = month ? parseInt(month as string) : now.getMonth() + 1;
+      const currentYear = year ? parseInt(year as string) : now.getFullYear();
+      
+      let yearsToCompare: number[] = [];
+      if (compareYears) {
+        if (typeof compareYears === 'string') {
+          yearsToCompare = compareYears.split(',').map(y => parseInt(y.trim())).filter(y => !isNaN(y));
+        }
+      }
+
+      const results = await storage.getDailyRevenueComparison({
+        storeId: storeId as string || 'todas',
+        month: currentMonth,
+        year: currentYear,
+        compareYears: yearsToCompare,
+      });
+
+      const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+
+      res.json({
+        period: {
+          month: currentMonth,
+          monthName: monthNames[currentMonth - 1],
+          year: currentYear,
+          compareYears: yearsToCompare,
+        },
+        storeId: storeId || 'todas',
+        series: results,
+      });
+    } catch (error: any) {
+      console.error('Error fetching daily revenue:', error);
+      res.status(500).json({ 
+        error: "Erro ao buscar receita diária",
+        message: error.message 
+      });
+    }
+  });
+
   app.get("/api/dapic/stores", async (req, res) => {
     try {
       const stores = dapicService.getAvailableStores();
