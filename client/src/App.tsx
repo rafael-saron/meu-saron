@@ -18,6 +18,7 @@ import Produtos from "@/pages/produtos";
 import ContasPagar from "@/pages/contas-pagar";
 import Metas from "@/pages/metas";
 import MetasCaixa from "@/pages/metas-caixa";
+import PagamentoBonus from "@/pages/pagamento-bonus";
 import Calendario from "@/pages/calendario";
 import Avisos from "@/pages/avisos";
 import Chat from "@/pages/chat";
@@ -37,6 +38,7 @@ function AuthenticatedRouter() {
       <Route path="/contas-pagar" component={ContasPagar} />
       <Route path="/metas" component={Metas} />
       <Route path="/metas-caixa" component={MetasCaixa} />
+      <Route path="/pagamento-bonus" component={PagamentoBonus} />
       <Route path="/calendario" component={Calendario} />
       <Route path="/avisos" component={Avisos} />
       <Route path="/chat" component={Chat} />
