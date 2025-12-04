@@ -1,4 +1,4 @@
-import { Home, Users, ShoppingBag, Package, DollarSign, Calendar, Bell, MessageCircle, Send, LayoutDashboard, UserCog, LogOut, Target, Wallet, Banknote } from "lucide-react";
+import { Home, Users, ShoppingBag, Package, DollarSign, Calendar, Bell, MessageCircle, Send, LayoutDashboard, UserCog, LogOut, Target, Wallet, Banknote, TrendingUp, BarChart3 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -35,6 +35,10 @@ const communicationItems = [
   { title: "Avisos", url: "/avisos", icon: Bell },
   { title: "Chat", url: "/chat", icon: MessageCircle },
   { title: "Mensagem Anônima", url: "/anonimo", icon: Send },
+];
+
+const financialItems = [
+  { title: "Receita Diária", url: "/financeiro/receita-diaria", icon: BarChart3 },
 ];
 
 const adminItems = [
@@ -135,6 +139,36 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {(user?.role === "administrador" || user?.role === "financeiro") && (
+          <SidebarGroup className="mt-6">
+            <SidebarGroupLabel className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+              Financeiro
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {financialItems.map((item) => {
+                  const isActive = location === item.url;
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        data-active={isActive}
+                        className="data-[active=true]:bg-sidebar-accent"
+                        data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                      >
+                        <Link href={item.url}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {user?.role === "administrador" && (
           <SidebarGroup className="mt-6">
