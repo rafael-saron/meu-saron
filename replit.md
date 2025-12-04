@@ -39,7 +39,8 @@ The system is built with a modern stack:
     - **Database Schema**: `sales` and `saleItems` tables with one-to-many relationship.
     - **Automatic Synchronization**: Monthly cron job and on-demand full history sync from Dapic using a DELETE-then-INSERT refresh strategy.
     - **Error Isolation**: Per-store sync with independent error handling.
-    - **Pagination**: Automatic Dapic pagination up to 100 pages per request.
+    - **Pagination Strategy**: dapicService.getVendasPDV returns single page when `Pagina` param provided (caller controls iteration), otherwise auto-paginates with configurable `maxPages` limit. salesSyncService controls page iteration with maxPages=100 for historical sync.
+    - **Historical Data**: Successfully synced ~7,775 sales from 2024 (Jun-Dec) for year-over-year comparison.
     - **API Endpoints**: For manual sync, full sync, status checks, and querying local sales.
 - **Role-Based Menu Access Control**: Granular menu access based on user roles (Vendedores, Gerentes, Administradores, Financeiro).
 - **Sales Goals Management (`/metas`)**:
