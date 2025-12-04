@@ -310,9 +310,16 @@ class DapicService {
       return { data, errors };
     }
     
-    // Implementar paginação automática para obter todos os registros de uma loja
+    // Se uma página específica foi solicitada, retornar apenas essa página
+    // Isso permite que o chamador (como salesSync) controle a iteração
+    if (params?.Pagina !== undefined) {
+      const resultado = await this.makeRequest(storeId, '/v1/vendaspdv', requestParams) as any;
+      return resultado;
+    }
+    
+    // Paginação automática quando nenhuma página específica é solicitada
     const registrosPorPagina = requestParams.RegistrosPorPagina;
-    let paginaAtual = params?.Pagina || 1;
+    let paginaAtual = 1;
     let todosResultados: any[] = [];
     let continuar = true;
     let ultimoResultado: any = null;
@@ -340,7 +347,6 @@ class DapicService {
         continuar = false;
       }
     }
-
     
     return {
       ...ultimoResultado,
