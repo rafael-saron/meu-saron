@@ -25,6 +25,7 @@ import Chat from "@/pages/chat";
 import Anonimo from "@/pages/anonimo";
 import Usuarios from "@/pages/usuarios";
 import Perfil from "@/pages/perfil";
+import ReceitaDiaria from "@/pages/receita-diaria";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRouter() {
@@ -45,6 +46,7 @@ function AuthenticatedRouter() {
       <Route path="/anonimo" component={Anonimo} />
       <Route path="/usuarios" component={Usuarios} />
       <Route path="/perfil" component={Perfil} />
+      <Route path="/financeiro/receita-diaria" component={ReceitaDiaria} />
       <Route component={NotFound} />
     </Switch>
   );
