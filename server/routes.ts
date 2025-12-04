@@ -1678,6 +1678,273 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Weekly bonus payment summary - for financial/admin use on Mondays
+  // Shows bonuses to be paid for the previous week
+  app.get("/api/bonus/payment-summary", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || (user.role !== 'administrador' && user.role !== 'financeiro')) {
+        return res.status(403).json({ error: "Sem permissão - apenas administrador e financeiro" });
+      }
+
+      const { storeId } = req.query;
+      
+      const now = new Date();
+      const saoPauloOffset = -3 * 60; // UTC-3
+      const localNow = new Date(now.getTime() + (saoPauloOffset + now.getTimezoneOffset()) * 60000);
+      
+      // Get PREVIOUS week dates (the week that ended before this Monday)
+      const getWeekStart = (date: Date) => {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+        return new Date(d.setDate(diff));
+      };
+      
+      const getPreviousWeekStart = (date: Date) => {
+        const currentWeekStart = getWeekStart(date);
+        return new Date(currentWeekStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+      };
+      
+      const getPreviousWeekEnd = (date: Date) => {
+        const prevWeekStart = getPreviousWeekStart(date);
+        return new Date(prevWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
+      };
+      
+      const formatDate = (d: Date) => d.toISOString().split('T')[0];
+      
+      const prevWeekStart = formatDate(getPreviousWeekStart(localNow));
+      const prevWeekEnd = formatDate(getPreviousWeekEnd(localNow));
+
+      // Custom rounding function
+      const customRound = (value: number) => {
+        const factor = 100;
+        const shifted = value * factor;
+        const floored = Math.floor(shifted);
+        const decimal = shifted - floored;
+        if (decimal > 0.5) {
+          return (floored + 1) / factor;
+        }
+        return floored / factor;
+      };
+
+      // Get all goals for the previous week
+      const allGoals = await storage.getSalesGoals({ isActive: true });
+      const allUsers = await storage.getAllUsers();
+      const activeUsers = allUsers.filter(u => u.isActive);
+
+      const isAllStores = !storeId || storeId === 'all' || storeId === 'todas';
+
+      // Filter goals for previous week
+      const weeklyGoals = allGoals.filter(g => {
+        if (g.period !== 'weekly') return false;
+        if (!isAllStores && g.storeId !== storeId) return false;
+        // Check if goal's period matches previous week
+        return g.weekStart === prevWeekStart && g.weekEnd === prevWeekEnd;
+      });
+
+      // Store name mapping
+      const storeNames: Record<string, string> = {
+        'saron1': 'Saron 1',
+        'saron2': 'Saron 2', 
+        'saron3': 'Saron 3',
+      };
+
+      // Calculate individual bonuses with detailed breakdown
+      const bonusDetails: Array<{
+        id: string;
+        name: string;
+        role: string;
+        storeId: string;
+        storeName: string;
+        targetValue: number;
+        actualSales: number;
+        percentage: number;
+        isGoalMet: boolean;
+        bonusPercentage: number;
+        bonusValue: number;
+        goalType: string;
+      }> = [];
+
+      for (const goal of weeklyGoals) {
+        if (!goal.sellerId) continue;
+        
+        const seller = activeUsers.find(u => u.id === goal.sellerId);
+        if (!seller) continue;
+
+        const sales = await storage.getSales({
+          storeId: goal.storeId,
+          sellerName: seller.fullName,
+          startDate: goal.weekStart,
+          endDate: goal.weekEnd,
+        });
+
+        const totalSales = sales.reduce((sum, s) => sum + parseFloat(s.totalValue), 0);
+        const targetValue = parseFloat(goal.targetValue);
+        const percentage = targetValue > 0 ? (totalSales / targetValue) * 100 : 0;
+        const isGoalMet = percentage >= 100;
+
+        const bonusPercentageAchieved = parseFloat(seller.bonusPercentageAchieved || "0");
+        const bonusPercentageNotAchieved = parseFloat(seller.bonusPercentageNotAchieved || "0");
+        const bonusPercentage = isGoalMet ? bonusPercentageAchieved : bonusPercentageNotAchieved;
+        
+        let bonusValue = 0;
+        if (seller.role === 'vendedor' || seller.role === 'gerente') {
+          bonusValue = customRound((bonusPercentage / 100) * totalSales);
+        }
+
+        bonusDetails.push({
+          id: seller.id,
+          name: seller.fullName,
+          role: seller.role,
+          storeId: goal.storeId,
+          storeName: storeNames[goal.storeId] || goal.storeId,
+          targetValue,
+          actualSales: customRound(totalSales),
+          percentage: customRound(percentage),
+          isGoalMet,
+          bonusPercentage,
+          bonusValue,
+          goalType: goal.type,
+        });
+      }
+
+      // Get cashier goals for previous week
+      const cashierGoals = await storage.getCashierGoals({ isActive: true });
+      const weeklyCashierGoals = cashierGoals.filter(g => {
+        if (g.periodType !== 'weekly') return false;
+        if (!isAllStores && g.storeId !== storeId) return false;
+        return g.weekStart === prevWeekStart && g.weekEnd === prevWeekEnd;
+      });
+
+      const cashierBonusDetails: Array<{
+        id: string;
+        name: string;
+        role: string;
+        storeId: string;
+        storeName: string;
+        paymentMethods: string[];
+        targetPercentage: number;
+        actualPercentage: number;
+        isGoalMet: boolean;
+        totalStoreSales: number;
+        targetMethodSales: number;
+        bonusPercentage: number;
+        bonusValue: number;
+      }> = [];
+
+      for (const goal of weeklyCashierGoals) {
+        const cashier = activeUsers.find(u => u.id === goal.cashierId);
+        if (!cashier) continue;
+
+        const storeSales = await storage.getSales({
+          storeId: goal.storeId,
+          startDate: goal.weekStart,
+          endDate: goal.weekEnd,
+        });
+
+        const totalStoreSales = storeSales.reduce((sum, s) => sum + parseFloat(s.totalValue), 0);
+        const paymentMethods = goal.paymentMethods || [];
+        let targetMethodSales = 0;
+
+        for (const sale of storeSales) {
+          const paymentMethod = (sale.paymentMethod || '').toLowerCase().trim();
+          for (const method of paymentMethods) {
+            const targetMethod = method.toLowerCase().trim();
+            if (paymentMethod.includes(targetMethod) || 
+                (targetMethod === 'pix' && paymentMethod.includes('pix')) ||
+                (targetMethod === 'debito' && (paymentMethod.includes('debito') || paymentMethod.includes('débito'))) ||
+                (targetMethod === 'dinheiro' && paymentMethod.includes('dinheiro'))) {
+              targetMethodSales += parseFloat(sale.totalValue);
+              break;
+            }
+          }
+        }
+
+        const percentageAchieved = totalStoreSales > 0 ? (targetMethodSales / totalStoreSales) * 100 : 0;
+        const targetPercentage = parseFloat(goal.targetPercentage);
+        const isGoalMet = percentageAchieved >= targetPercentage;
+        const bonusPercentage = isGoalMet 
+          ? parseFloat(goal.bonusPercentageAchieved)
+          : parseFloat(goal.bonusPercentageNotAchieved);
+        const bonusValue = customRound((bonusPercentage / 100) * targetMethodSales);
+
+        cashierBonusDetails.push({
+          id: cashier.id,
+          name: cashier.fullName,
+          role: 'caixa',
+          storeId: goal.storeId,
+          storeName: storeNames[goal.storeId] || goal.storeId,
+          paymentMethods,
+          targetPercentage,
+          actualPercentage: customRound(percentageAchieved),
+          isGoalMet,
+          totalStoreSales: customRound(totalStoreSales),
+          targetMethodSales: customRound(targetMethodSales),
+          bonusPercentage,
+          bonusValue,
+        });
+      }
+
+      // Calculate totals by role
+      const vendorTotal = bonusDetails
+        .filter(b => b.role === 'vendedor')
+        .reduce((sum, b) => sum + b.bonusValue, 0);
+      const managerTotal = bonusDetails
+        .filter(b => b.role === 'gerente')
+        .reduce((sum, b) => sum + b.bonusValue, 0);
+      const cashierTotal = cashierBonusDetails
+        .reduce((sum, b) => sum + b.bonusValue, 0);
+      const grandTotal = vendorTotal + managerTotal + cashierTotal;
+
+      // Calculate totals by store
+      const storeIds = ['saron1', 'saron2', 'saron3'];
+      const byStore = storeIds.map(sid => {
+        const storeBonuses = bonusDetails.filter(b => b.storeId === sid);
+        const storeCashierBonuses = cashierBonusDetails.filter(b => b.storeId === sid);
+        return {
+          storeId: sid,
+          storeName: storeNames[sid],
+          vendorTotal: customRound(storeBonuses.filter(b => b.role === 'vendedor').reduce((sum, b) => sum + b.bonusValue, 0)),
+          managerTotal: customRound(storeBonuses.filter(b => b.role === 'gerente').reduce((sum, b) => sum + b.bonusValue, 0)),
+          cashierTotal: customRound(storeCashierBonuses.reduce((sum, b) => sum + b.bonusValue, 0)),
+          total: customRound(
+            storeBonuses.reduce((sum, b) => sum + b.bonusValue, 0) +
+            storeCashierBonuses.reduce((sum, b) => sum + b.bonusValue, 0)
+          ),
+        };
+      });
+
+      res.json({
+        period: {
+          start: prevWeekStart,
+          end: prevWeekEnd,
+          paymentDate: formatDate(getWeekStart(localNow)), // This Monday
+        },
+        salesGoals: bonusDetails,
+        cashierGoals: cashierBonusDetails,
+        totals: {
+          vendorTotal: customRound(vendorTotal),
+          managerTotal: customRound(managerTotal),
+          cashierTotal: customRound(cashierTotal),
+          grandTotal: customRound(grandTotal),
+        },
+        byStore,
+      });
+    } catch (error: any) {
+      console.error('Error calculating payment summary:', error);
+      res.status(500).json({ 
+        error: "Erro ao calcular resumo de pagamento",
+        message: error.message 
+      });
+    }
+  });
+
   app.get("/api/dapic/stores", async (req, res) => {
     try {
       const stores = dapicService.getAvailableStores();
