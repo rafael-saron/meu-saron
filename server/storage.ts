@@ -9,6 +9,7 @@ import {
   userStores,
   sales,
   saleItems,
+  saleReceipts,
   cashierGoals,
   type User,
   type InsertUser,
@@ -28,6 +29,8 @@ import {
   type InsertSale,
   type SaleItem,
   type InsertSaleItem,
+  type SaleReceipt,
+  type InsertSaleReceipt,
   type CashierGoal,
   type InsertCashierGoal,
 } from "@shared/schema";
@@ -79,7 +82,10 @@ export interface IStorage {
   
   createSale(sale: InsertSale): Promise<Sale>;
   createSaleItem(item: InsertSaleItem): Promise<SaleItem>;
+  createSaleReceipt(receipt: InsertSaleReceipt): Promise<SaleReceipt>;
+  createSaleWithItemsAndReceipts(sale: InsertSale, items: InsertSaleItem[], receipts: InsertSaleReceipt[]): Promise<Sale>;
   createSaleWithItems(sale: InsertSale, items: InsertSaleItem[]): Promise<Sale>;
+  getReceiptsByPaymentMethod(storeId: string, startDate: string, endDate: string, paymentMethods: string[]): Promise<{ paymentMethod: string; totalGross: number; totalNet: number }[]>;
   getSales(filters?: {
     storeId?: string;
     sellerName?: string;
@@ -325,6 +331,35 @@ export class DatabaseStorage implements IStorage {
     return item;
   }
   
+  async createSaleReceipt(insertReceipt: InsertSaleReceipt): Promise<SaleReceipt> {
+    const [receipt] = await db.insert(saleReceipts).values(insertReceipt).returning();
+    return receipt;
+  }
+  
+  async createSaleWithItemsAndReceipts(insertSale: InsertSale, insertItems: InsertSaleItem[], insertReceipts: InsertSaleReceipt[]): Promise<Sale> {
+    return await db.transaction(async (tx) => {
+      const [sale] = await tx.insert(sales).values(insertSale).returning();
+      
+      if (insertItems.length > 0) {
+        const itemsWithSaleId = insertItems.map(item => ({
+          ...item,
+          saleId: sale.id,
+        }));
+        await tx.insert(saleItems).values(itemsWithSaleId);
+      }
+      
+      if (insertReceipts.length > 0) {
+        const receiptsWithSaleId = insertReceipts.map(receipt => ({
+          ...receipt,
+          saleId: sale.id,
+        }));
+        await tx.insert(saleReceipts).values(receiptsWithSaleId);
+      }
+      
+      return sale;
+    });
+  }
+  
   async createSaleWithItems(insertSale: InsertSale, insertItems: InsertSaleItem[]): Promise<Sale> {
     return await db.transaction(async (tx) => {
       const [sale] = await tx.insert(sales).values(insertSale).returning();
@@ -339,6 +374,48 @@ export class DatabaseStorage implements IStorage {
       
       return sale;
     });
+  }
+  
+  async getReceiptsByPaymentMethod(storeId: string, startDate: string, endDate: string, paymentMethods: string[]): Promise<{ paymentMethod: string; totalGross: number; totalNet: number }[]> {
+    // Get all receipts for the period that match any of the payment methods
+    const receipts = await db
+      .select({
+        paymentMethod: saleReceipts.paymentMethod,
+        grossValue: saleReceipts.grossValue,
+        netValue: saleReceipts.netValue,
+      })
+      .from(saleReceipts)
+      .innerJoin(sales, eq(saleReceipts.saleId, sales.id))
+      .where(
+        and(
+          eq(sales.storeId, storeId),
+          gte(sales.saleDate, startDate),
+          lte(sales.saleDate, endDate)
+        )
+      );
+    
+    // Group by payment method and sum values
+    const methodTotals: Record<string, { totalGross: number; totalNet: number }> = {};
+    
+    for (const receipt of receipts) {
+      const method = receipt.paymentMethod.toLowerCase();
+      // Check if this method matches any of the target methods
+      for (const targetMethod of paymentMethods) {
+        if (method.includes(targetMethod.toLowerCase())) {
+          if (!methodTotals[targetMethod]) {
+            methodTotals[targetMethod] = { totalGross: 0, totalNet: 0 };
+          }
+          methodTotals[targetMethod].totalGross += parseFloat(receipt.grossValue);
+          methodTotals[targetMethod].totalNet += parseFloat(receipt.netValue);
+          break; // Only count once per receipt
+        }
+      }
+    }
+    
+    return Object.entries(methodTotals).map(([paymentMethod, totals]) => ({
+      paymentMethod,
+      ...totals,
+    }));
   }
   
   async getSales(filters?: {

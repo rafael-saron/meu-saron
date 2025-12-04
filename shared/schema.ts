@@ -105,6 +105,16 @@ export const saleItems = pgTable("sale_items", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Recebimentos de vendas - armazena o valor por método de pagamento
+export const saleReceipts = pgTable("sale_receipts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  saleId: varchar("sale_id").notNull().references(() => sales.id, { onDelete: 'cascade' }),
+  paymentMethod: text("payment_method").notNull(), // pix, dinheiro, debito, credito, crediario
+  grossValue: decimal("gross_value", { precision: 12, scale: 2 }).notNull(), // ValorBruto
+  netValue: decimal("net_value", { precision: 12, scale: 2 }).notNull(), // Valor (líquido)
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Metas de caixa - baseadas em percentual de vendas em meios específicos
 export const cashierGoals = pgTable("cashier_goals", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -199,11 +209,19 @@ export const salesGoalsRelations = relations(salesGoals, ({ one }) => ({
 
 export const salesRelations = relations(sales, ({ many }) => ({
   items: many(saleItems),
+  receipts: many(saleReceipts),
 }));
 
 export const saleItemsRelations = relations(saleItems, ({ one }) => ({
   sale: one(sales, {
     fields: [saleItems.saleId],
+    references: [sales.id],
+  }),
+}));
+
+export const saleReceiptsRelations = relations(saleReceipts, ({ one }) => ({
+  sale: one(sales, {
+    fields: [saleReceipts.saleId],
     references: [sales.id],
   }),
 }));
@@ -286,6 +304,14 @@ export const insertSaleItemSchema = createInsertSchema(saleItems).omit({
   totalPrice: z.string().or(z.number()).transform((val) => String(val)),
 });
 
+export const insertSaleReceiptSchema = createInsertSchema(saleReceipts).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  grossValue: z.string().or(z.number()).transform((val) => String(val)),
+  netValue: z.string().or(z.number()).transform((val) => String(val)),
+});
+
 export const insertCashierGoalSchema = createInsertSchema(cashierGoals).omit({
   id: true,
   createdAt: true,
@@ -307,6 +333,8 @@ export type Sale = typeof sales.$inferSelect;
 export type InsertSale = z.infer<typeof insertSaleSchema>;
 export type SaleItem = typeof saleItems.$inferSelect;
 export type InsertSaleItem = z.infer<typeof insertSaleItemSchema>;
+export type SaleReceipt = typeof saleReceipts.$inferSelect;
+export type InsertSaleReceipt = z.infer<typeof insertSaleReceiptSchema>;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
 export type ScheduleEvent = typeof scheduleEvents.$inferSelect;
