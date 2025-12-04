@@ -1698,22 +1698,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const saoPauloOffset = -3 * 60; // UTC-3
       const localNow = new Date(now.getTime() + (saoPauloOffset + now.getTimezoneOffset()) * 60000);
       
-      // Get PREVIOUS week dates (the week that ended before this Monday)
-      const getWeekStart = (date: Date) => {
+      // Get PREVIOUS week dates (Sunday to Saturday - matching goals creation)
+      // Week starts on Sunday (day 0) and ends on Saturday (day 6)
+      const getWeekStartSunday = (date: Date) => {
         const d = new Date(date);
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-        return new Date(d.setDate(diff));
+        const day = d.getDay(); // 0 = Sunday, 6 = Saturday
+        d.setDate(d.getDate() - day); // Go back to Sunday
+        return d;
       };
       
       const getPreviousWeekStart = (date: Date) => {
-        const currentWeekStart = getWeekStart(date);
+        const currentWeekStart = getWeekStartSunday(date);
         return new Date(currentWeekStart.getTime() - 7 * 24 * 60 * 60 * 1000);
       };
       
       const getPreviousWeekEnd = (date: Date) => {
         const prevWeekStart = getPreviousWeekStart(date);
-        return new Date(prevWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
+        return new Date(prevWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000); // +6 days = Saturday
+      };
+      
+      // Get current week's Monday (payment date)
+      const getCurrentMonday = (date: Date) => {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = day === 0 ? 1 : (1 - day + 7) % 7 || 7; // If Sunday, Monday is tomorrow; otherwise find next/current Monday
+        if (day === 0) {
+          d.setDate(d.getDate() + 1); // Sunday -> Monday
+        } else if (day === 1) {
+          // Already Monday
+        } else {
+          d.setDate(d.getDate() - (day - 1)); // Go back to Monday
+        }
+        return d;
       };
       
       const formatDate = (d: Date) => d.toISOString().split('T')[0];
@@ -1924,7 +1940,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         period: {
           start: prevWeekStart,
           end: prevWeekEnd,
-          paymentDate: formatDate(getWeekStart(localNow)), // This Monday
+          paymentDate: formatDate(getCurrentMonday(localNow)), // This Monday
         },
         salesGoals: bonusDetails,
         cashierGoals: cashierBonusDetails,
