@@ -2386,6 +2386,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Debug endpoint to see Dapic sales structure
+  app.get("/api/debug/dapic-sale-structure", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== 'administrador') {
+        return res.status(403).json({ error: "Acesso restrito a administradores" });
+      }
+
+      const { storeId, date } = req.query;
+      const targetStoreId = (storeId as string) || 'saron1';
+      const targetDate = (date as string) || new Date().toISOString().split('T')[0];
+
+      const response = await dapicService.getVendasPDV(targetStoreId, {
+        DataInicial: targetDate,
+        DataFinal: targetDate,
+        Pagina: 1,
+        RegistrosPorPagina: 5,
+      }) as any;
+
+      const salesData = response?.Dados || [];
+      
+      res.json({
+        message: `Estrutura de ${salesData.length} vendas do Dapic`,
+        sampleSales: salesData.slice(0, 3).map((sale: any) => ({
+          allKeys: Object.keys(sale),
+          sampleData: sale,
+        })),
+      });
+    } catch (error: any) {
+      console.error('Error debugging Dapic structure:', error);
+      res.status(500).json({ 
+        error: "Erro ao buscar estrutura do Dapic",
+        message: error.message 
+      });
+    }
+  });
+
   app.get("/api/sales", async (req, res) => {
     try {
       const userId = req.session.userId;

@@ -19,6 +19,51 @@ interface SyncProgress {
 export class SalesSyncService {
   private syncInProgress: Map<string, SyncProgress> = new Map();
 
+  // Normalize payment method names to standard format for easier matching
+  private normalizePaymentMethod(rawMethod: string): string {
+    if (!rawMethod) return '';
+    
+    const method = rawMethod.toLowerCase().trim();
+    
+    // Normalize PIX
+    if (method.includes('pix')) {
+      return 'pix';
+    }
+    
+    // Normalize Dinheiro
+    if (method.includes('dinheiro') || method.includes('especie') || method.includes('espécie')) {
+      return 'dinheiro';
+    }
+    
+    // Normalize Débito
+    if (method.includes('débito') || method.includes('debito') || method.includes('tef débito') || method.includes('tef debito')) {
+      return 'debito';
+    }
+    
+    // Normalize Crédito
+    if (method.includes('crédito') || method.includes('credito') || method.includes('tef crédito') || method.includes('tef credito')) {
+      return 'credito';
+    }
+    
+    // Normalize Boleto
+    if (method.includes('boleto')) {
+      return 'boleto';
+    }
+    
+    // Normalize Crediário/Carnê
+    if (method.includes('crediário') || method.includes('crediario') || method.includes('carnê') || method.includes('carne')) {
+      return 'crediario';
+    }
+    
+    // Normalize Transferência
+    if (method.includes('transferência') || method.includes('transferencia') || method.includes('ted') || method.includes('doc')) {
+      return 'transferencia';
+    }
+    
+    // Return cleaned version of original if no match
+    return method.replace(/^\d+\s*-\s*/, '').trim() || rawMethod;
+  }
+
   async syncStore(
     storeId: string,
     startDate: string,
@@ -85,6 +130,27 @@ export class SalesSyncService {
             
             processedSaleCodes.add(saleCode);
             
+            // Extract payment method from Recebimentos array
+            let paymentMethod: string | null = null;
+            if (dapicSale.Recebimentos && Array.isArray(dapicSale.Recebimentos) && dapicSale.Recebimentos.length > 0) {
+              // Get the payment method from the first (or main) recebimento
+              // Normalize payment method names for easier matching
+              const rawPaymentMethod = dapicSale.Recebimentos[0].FormaPagamento || '';
+              paymentMethod = this.normalizePaymentMethod(rawPaymentMethod);
+              
+              // If there are multiple payment methods, concatenate them
+              if (dapicSale.Recebimentos.length > 1) {
+                const allMethods = dapicSale.Recebimentos.map((r: any) => 
+                  this.normalizePaymentMethod(r.FormaPagamento || '')
+                ).filter((m: string) => m);
+                // Use unique methods
+                const uniqueMethods = Array.from(new Set(allMethods as string[]));
+                if (uniqueMethods.length > 1) {
+                  paymentMethod = uniqueMethods.join(', ');
+                }
+              }
+            }
+
             const sale: InsertSale = {
               saleCode,
               saleDate: dapicSale.DataFechamento || dapicSale.DataEmissao || dapicSale.Data || new Date().toISOString().split('T')[0],
@@ -93,7 +159,7 @@ export class SalesSyncService {
               clientName: dapicSale.NomeCliente || dapicSale.Cliente || null,
               storeId: storeId as "saron1" | "saron2" | "saron3",
               status: dapicSale.Status || 'Finalizado',
-              paymentMethod: dapicSale.FormaPagamento || dapicSale.MeioPagamento || dapicSale.TipoPagamento || null,
+              paymentMethod: paymentMethod,
             };
 
             const items: InsertSaleItem[] = [];
