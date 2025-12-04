@@ -279,6 +279,7 @@ class DapicService {
     Status?: string;
     Pagina?: number;
     RegistrosPorPagina?: number;
+    maxPages?: number;
   }) {
     const requestParams = {
       ...params,
@@ -286,6 +287,7 @@ class DapicService {
       Status: params?.Status || '1',
       RegistrosPorPagina: params?.RegistrosPorPagina || 200,
     };
+    const maxPagesLimit = params?.maxPages || 10;
     
     // Se pedir "todas", buscar de cada loja em paralelo mantendo dados separados
     if (storeId === 'todas') {
@@ -332,9 +334,9 @@ class DapicService {
         paginaAtual++;
       }
       
-      // Limite de segurança: não buscar mais de 10 páginas (2.000 registros)
-      if (paginaAtual > 10) {
-        console.log(`Aviso: Limite de paginação atingido (10 páginas = 2.000 registros) para vendas PDV da loja ${storeId}`);
+      // Limite de segurança configurável
+      if (paginaAtual > maxPagesLimit) {
+        console.log(`Aviso: Limite de paginação atingido (${maxPagesLimit} páginas = ${maxPagesLimit * 200} registros) para vendas PDV da loja ${storeId}`);
         continuar = false;
       }
     }
