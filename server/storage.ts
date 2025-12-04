@@ -109,6 +109,17 @@ export interface IStorage {
   createCashierGoal(goal: InsertCashierGoal): Promise<CashierGoal>;
   updateCashierGoal(id: string, goal: Partial<CashierGoal>): Promise<CashierGoal | undefined>;
   deleteCashierGoal(id: string): Promise<void>;
+  
+  getDailyRevenueComparison(filters: {
+    storeId?: string;
+    month: number;
+    year: number;
+    compareYears?: number[];
+  }): Promise<{
+    year: number;
+    daily: { date: string; day: number; totalValue: number }[];
+    total: number;
+  }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -524,6 +535,66 @@ export class DatabaseStorage implements IStorage {
   
   async deleteCashierGoal(id: string): Promise<void> {
     await db.delete(cashierGoals).where(eq(cashierGoals.id, id));
+  }
+  
+  async getDailyRevenueComparison(filters: {
+    storeId?: string;
+    month: number;
+    year: number;
+    compareYears?: number[];
+  }): Promise<{
+    year: number;
+    daily: { date: string; day: number; totalValue: number }[];
+    total: number;
+  }[]> {
+    const { storeId, month, year, compareYears = [] } = filters;
+    const yearsToQuery = [year, ...compareYears].sort((a, b) => b - a);
+    const results: {
+      year: number;
+      daily: { date: string; day: number; totalValue: number }[];
+      total: number;
+    }[] = [];
+
+    for (const queryYear of yearsToQuery) {
+      const startDate = `${queryYear}-${String(month).padStart(2, '0')}-01`;
+      const lastDay = new Date(queryYear, month, 0).getDate();
+      const endDate = `${queryYear}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+      const conditions = [
+        gte(sales.saleDate, startDate),
+        lte(sales.saleDate, endDate),
+      ];
+
+      if (storeId && storeId !== 'todas') {
+        conditions.push(eq(sales.storeId, storeId));
+      }
+
+      const dailySales = await db
+        .select({
+          date: sales.saleDate,
+          totalValue: sql<string>`SUM(CAST(${sales.totalValue} AS NUMERIC))`,
+        })
+        .from(sales)
+        .where(and(...conditions))
+        .groupBy(sales.saleDate)
+        .orderBy(sales.saleDate);
+
+      const dailyData = dailySales.map(row => ({
+        date: row.date,
+        day: parseInt(row.date.split('-')[2]),
+        totalValue: parseFloat(row.totalValue) || 0,
+      }));
+
+      const total = dailyData.reduce((sum, d) => sum + d.totalValue, 0);
+
+      results.push({
+        year: queryYear,
+        daily: dailyData,
+        total,
+      });
+    }
+
+    return results;
   }
 }
 
