@@ -62,6 +62,14 @@ The system is built with a modern stack:
     - **Auto-refresh**: Updates every 60 seconds.
 - **Multi-Store Manager Support**: Backend APIs for assigning multiple stores to managers via `userStores` junction table.
 - **Data Normalization**: Robust currency normalization for Dapic data.
+- **Financial Daily Revenue (`/financeiro/receita-diaria`)**:
+    - **Purpose**: Day-by-day revenue comparison across multiple years.
+    - **Access Control**: Restricted to 'administrador' and 'financeiro' roles only.
+    - **API Endpoint**: `/api/financial/daily-revenue` with month/year/storeId/compareYears filters.
+    - **Features**: Area chart visualization, detailed daily table with deltas, total comparison cards.
+    - **Data Source**: Uses local `sales` table for consistent data across all views.
+    - **Comparison**: Select multiple years for year-over-year analysis with percentage changes.
+    - **Auto-refresh**: Updates every 60 seconds.
 
 **System Design Choices:**
 - Frontend and backend share port 5000 via Vite proxy.
