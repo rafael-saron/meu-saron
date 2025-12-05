@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Users, ShoppingBag, Package, DollarSign, Calendar, TrendingUp } from "lucide-react";
+import { Users, ShoppingBag, Package, DollarSign, Calendar, TrendingUp, RefreshCw } from "lucide-react";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
@@ -10,6 +10,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { parseBrazilianCurrency } from "@/lib/currency";
 import { useUser } from "@/lib/user-context";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 function parseBrazilianDate(dateStr: string): Date | null {
   if (!dateStr) return null;
@@ -67,7 +70,9 @@ function isInCurrentMonth(date: Date): boolean {
 
 export default function Dashboard() {
   const { user } = useUser();
+  const { toast } = useToast();
   const [selectedStore, setSelectedStore] = useState<string>("");
+  const [isSyncing, setIsSyncing] = useState(false);
   
   useEffect(() => {
     if (user && !selectedStore) {
@@ -75,6 +80,38 @@ export default function Dashboard() {
       setSelectedStore(defaultStore);
     }
   }, [user, selectedStore]);
+
+  const handleRefreshData = async () => {
+    setIsSyncing(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const storeToSync = selectedStore === "todas" ? "todas" : selectedStore;
+      
+      await apiRequest("POST", "/api/sales/sync", {
+        storeId: storeToSync,
+        startDate: today,
+        endDate: today
+      });
+
+      await queryClient.invalidateQueries({ queryKey: ['/api/dapic'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/bonus'] });
+
+      toast({
+        title: "Dados atualizados",
+        description: "Os dados foram sincronizados com o Dapic com sucesso.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro na sincronização",
+        description: error.message || "Não foi possível atualizar os dados.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const { data: clientsData, isLoading: loadingClients, error: clientsError } = useDapicClientes(selectedStore);
   const { data: salesData, isLoading: loadingSales, error: salesError } = useDapicVendasPDV(selectedStore);
@@ -248,7 +285,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-display font-semibold text-foreground" data-testid="text-dashboard-title">
             Dashboard
@@ -260,7 +297,19 @@ export default function Dashboard() {
             </p>
           )}
         </div>
-        {canChangeStore && <StoreSelector value={selectedStore} onChange={setSelectedStore} />}
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefreshData}
+            disabled={isSyncing}
+            data-testid="button-refresh-data"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? 'Atualizando...' : 'Atualizar Dados'}
+          </Button>
+          {canChangeStore && <StoreSelector value={selectedStore} onChange={setSelectedStore} />}
+        </div>
       </div>
 
       {hasError && (
