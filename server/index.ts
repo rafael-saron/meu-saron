@@ -7,6 +7,9 @@ import { initializeCronJobs } from "./cronJobs";
 
 const app = express();
 
+// Trust proxy - required for secure cookies behind Replit's reverse proxy
+app.set('trust proxy', 1);
+
 // CRITICAL: Health check endpoint must be registered FIRST, before any middleware
 // This ensures the endpoint responds immediately for deployment health checks
 // without waiting for database connections or external services
@@ -37,15 +40,19 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: false }));
 
+const isProduction = process.env.NODE_ENV === "production";
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "saron-secret-key-change-in-production",
     resave: false,
     saveUninitialized: false,
+    proxy: true,
     cookie: {
-      secure: process.env.NODE_ENV === "production",
+      secure: isProduction,
       httpOnly: true,
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+      sameSite: isProduction ? 'none' : 'lax',
     },
   })
 );
