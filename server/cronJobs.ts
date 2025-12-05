@@ -4,8 +4,17 @@ import { salesSyncService } from "./salesSync";
 // Track if cron jobs have been initialized to prevent duplicate timers on hot reload
 let cronInitialized = false;
 
+// Get current date in Brazil timezone (UTC-3)
+function getBrazilDate(): string {
+  const now = new Date();
+  const brazilOffset = -3 * 60; // UTC-3 in minutes
+  const utcOffset = now.getTimezoneOffset();
+  const brazilTime = new Date(now.getTime() + (utcOffset + brazilOffset) * 60 * 1000);
+  return brazilTime.toISOString().split('T')[0];
+}
+
 async function syncTodaySales(triggerSource: string) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getBrazilDate();
   console.log(`[CRON] ${triggerSource} - Sincronizando vendas de hoje (${today})...`);
   
   try {

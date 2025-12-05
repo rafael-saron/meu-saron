@@ -260,16 +260,24 @@ export class SalesSyncService {
     return results;
   }
 
+  // Get current date in Brazil timezone (UTC-3)
+  private getBrazilDate(): Date {
+    const now = new Date();
+    const brazilOffset = -3 * 60; // UTC-3 in minutes
+    const utcOffset = now.getTimezoneOffset();
+    return new Date(now.getTime() + (utcOffset + brazilOffset) * 60 * 1000);
+  }
+
   async syncFullHistory(): Promise<SyncResult[]> {
     const startDate = '2024-01-01';
-    const endDate = new Date().toISOString().split('T')[0];
+    const endDate = this.getBrazilDate().toISOString().split('T')[0];
     
     console.log(`[SalesSync] Iniciando sincronização completa desde ${startDate}`);
     return await this.syncAllStores(startDate, endDate);
   }
 
   async syncCurrentMonth(): Promise<SyncResult[]> {
-    const now = new Date();
+    const now = this.getBrazilDate();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     
