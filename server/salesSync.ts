@@ -2,6 +2,61 @@ import { storage } from "./storage";
 import { dapicService } from "./dapic";
 import type { InsertSale, InsertSaleItem, InsertSaleReceipt } from "@shared/schema";
 
+// Convert Dapic date format (DD/MM/YYYY or DD/MM/YYYY HH:MM:SS) to ISO format (YYYY-MM-DD)
+function parseDapicDate(dateStr: string | null | undefined): string {
+  if (!dateStr) {
+    return new Date().toISOString().split('T')[0];
+  }
+  
+  const str = String(dateStr).trim();
+  
+  // Already in ISO format (YYYY-MM-DD)
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    return str.split('T')[0].split(' ')[0];
+  }
+  
+  // Brazilian format: DD/MM/YYYY or DD/MM/YYYY HH:MM:SS
+  const match = str.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (match) {
+    const [, day, month, year] = match;
+    return `${year}-${month}-${day}`;
+  }
+  
+  // Try to parse as date
+  try {
+    const date = new Date(str);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0];
+    }
+  } catch {
+    // Fall through to default
+  }
+  
+  console.warn(`[SalesSync] Could not parse date: "${dateStr}", using current date`);
+  return new Date().toISOString().split('T')[0];
+}
+
+// Parse Brazilian currency format to number
+function parseCurrencyValue(value: any): number {
+  if (typeof value === 'number') return value;
+  if (!value) return 0;
+  
+  const str = String(value).trim();
+  
+  // Handle Brazilian format: 1.234,56
+  if (str.includes(',') && str.includes('.')) {
+    // Has both separators, assume Brazilian format
+    return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+  
+  // Handle Brazilian format: 1234,56 (no thousands separator)
+  if (str.includes(',') && !str.includes('.')) {
+    return parseFloat(str.replace(',', '.')) || 0;
+  }
+  
+  return parseFloat(str) || 0;
+}
+
 interface SyncResult {
   success: boolean;
   store: string;
@@ -151,10 +206,17 @@ export class SalesSyncService {
               }
             }
 
+            // Parse and normalize the sale date from Dapic format to ISO
+            const rawDate = dapicSale.DataFechamento || dapicSale.DataEmissao || dapicSale.Data;
+            const parsedDate = parseDapicDate(rawDate);
+            
+            // Parse and normalize the total value
+            const totalValue = parseCurrencyValue(dapicSale.ValorLiquido || dapicSale.ValorTotal || 0);
+            
             const sale: InsertSale = {
               saleCode,
-              saleDate: dapicSale.DataFechamento || dapicSale.DataEmissao || dapicSale.Data || new Date().toISOString().split('T')[0],
-              totalValue: String(dapicSale.ValorLiquido || dapicSale.ValorTotal || 0),
+              saleDate: parsedDate,
+              totalValue: String(totalValue),
               sellerName: dapicSale.NomeVendedor || dapicSale.Vendedor || 'Sem Vendedor',
               clientName: dapicSale.NomeCliente || dapicSale.Cliente || null,
               storeId: storeId as "saron1" | "saron2" | "saron3",
@@ -170,9 +232,9 @@ export class SalesSyncService {
                   saleId: '',
                   productCode: String(dapicItem.CodigoProduto || dapicItem.Codigo || ''),
                   productDescription: dapicItem.Descricao || dapicItem.NomeProduto || 'Sem Descrição',
-                  quantity: String(dapicItem.Quantidade || 1),
-                  unitPrice: String(dapicItem.ValorUnitario || dapicItem.PrecoUnitario || 0),
-                  totalPrice: String(dapicItem.ValorTotal || dapicItem.Total || 0),
+                  quantity: String(parseCurrencyValue(dapicItem.Quantidade) || 1),
+                  unitPrice: String(parseCurrencyValue(dapicItem.ValorUnitario || dapicItem.PrecoUnitario || 0)),
+                  totalPrice: String(parseCurrencyValue(dapicItem.ValorTotal || dapicItem.Total || 0)),
                 });
               }
             }
