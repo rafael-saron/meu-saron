@@ -221,77 +221,174 @@ export default function MetasPessoais() {
           </CardContent>
         </Card>
       ) : (
-        <div>
-          <h2 className="text-xl font-semibold text-foreground mb-4">Detalhes das Metas</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {goals.map((goal) => (
-              <Card key={goal.id} data-testid={`card-goal-${goal.id}`}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
-                      <CardTitle className="text-base font-semibold flex items-center gap-2 flex-wrap">
-                        {getStoreLabel(goal.storeId)}
-                        <Badge 
-                          variant={goal.isFinished ? (goal.achieved ? "default" : "destructive") : "secondary"} 
-                          className="text-xs"
-                        >
-                          {goal.isFinished 
-                            ? (goal.achieved ? "Atingida" : "Não Atingida") 
-                            : "Em Andamento"}
-                        </Badge>
-                      </CardTitle>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {getWeekLabel(goal.weekStart, goal.weekEnd)}
-                      </p>
-                    </div>
-                    {getProgressIcon(goal.percentage, goal.isFinished, goal.achieved)}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-muted-foreground">Progresso</span>
-                      <span className={`text-sm font-bold ${getProgressColor(goal.percentage)}`}>
-                        {goal.percentage.toFixed(1)}%
-                      </span>
-                    </div>
-                    <Progress value={Math.min(goal.percentage, 100)} className="h-2" />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Realizado</p>
-                      <p className="text-sm font-semibold text-foreground">
-                        R$ {goal.currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Meta</p>
-                      <p className="text-sm font-semibold text-primary">
-                        R$ {goal.targetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                  </div>
-
-                  {goal.isFinished && (
-                    <div className="pt-2 border-t border-border">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Bônus ({goal.appliedBonusPercentage}%)</p>
-                          <p className={`text-sm font-bold ${goal.bonusValue > 0 ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
-                            R$ {goal.bonusValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+        <div className="space-y-8">
+          {/* Weekly Goals Section */}
+          {goals.filter(g => g.period === 'weekly').length > 0 && (
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-blue-500/10">
+                  <Target className="h-5 w-5 text-blue-500" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-foreground">Metas Semanais</h2>
+                  <p className="text-sm text-muted-foreground">Acompanhamento das metas por semana</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {goals.filter(g => g.period === 'weekly').map((goal) => (
+                  <Card key={goal.id} data-testid={`card-goal-weekly-${goal.id}`} className="border-l-4 border-l-blue-500">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <CardTitle className="text-base font-semibold flex items-center gap-2 flex-wrap">
+                            {getStoreLabel(goal.storeId)}
+                            <Badge 
+                              variant={goal.isFinished ? (goal.achieved ? "default" : "destructive") : "secondary"} 
+                              className="text-xs"
+                            >
+                              {goal.isFinished 
+                                ? (goal.achieved ? "Atingida" : "Não Atingida") 
+                                : "Em Andamento"}
+                            </Badge>
+                          </CardTitle>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {getWeekLabel(goal.weekStart, goal.weekEnd)}
                           </p>
                         </div>
-                        {goal.achieved && (
-                          <Award className="h-5 w-5 text-yellow-500" />
-                        )}
+                        {getProgressIcon(goal.percentage, goal.isFinished, goal.achieved)}
                       </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-muted-foreground">Progresso</span>
+                          <span className={`text-sm font-bold ${getProgressColor(goal.percentage)}`}>
+                            {goal.percentage.toFixed(1)}%
+                          </span>
+                        </div>
+                        <Progress value={Math.min(goal.percentage, 100)} className="h-2" />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Realizado</p>
+                          <p className="text-sm font-semibold text-foreground">
+                            R$ {goal.currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Meta</p>
+                          <p className="text-sm font-semibold text-primary">
+                            R$ {goal.targetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+
+                      {goal.isFinished && (
+                        <div className="pt-2 border-t border-border">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Bônus ({goal.appliedBonusPercentage}%)</p>
+                              <p className={`text-sm font-bold ${goal.bonusValue > 0 ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
+                                R$ {goal.bonusValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </p>
+                            </div>
+                            {goal.achieved && (
+                              <Award className="h-5 w-5 text-yellow-500" />
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Monthly Goals Section */}
+          {goals.filter(g => g.period === 'monthly').length > 0 && (
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-purple-500/10">
+                  <Award className="h-5 w-5 text-purple-500" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-foreground">Metas Mensais</h2>
+                  <p className="text-sm text-muted-foreground">Acompanhamento das metas por mês</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {goals.filter(g => g.period === 'monthly').map((goal) => (
+                  <Card key={goal.id} data-testid={`card-goal-monthly-${goal.id}`} className="border-l-4 border-l-purple-500">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <CardTitle className="text-base font-semibold flex items-center gap-2 flex-wrap">
+                            {getStoreLabel(goal.storeId)}
+                            <Badge 
+                              variant={goal.isFinished ? (goal.achieved ? "default" : "destructive") : "secondary"} 
+                              className="text-xs"
+                            >
+                              {goal.isFinished 
+                                ? (goal.achieved ? "Atingida" : "Não Atingida") 
+                                : "Em Andamento"}
+                            </Badge>
+                          </CardTitle>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {getWeekLabel(goal.weekStart, goal.weekEnd)}
+                          </p>
+                        </div>
+                        {getProgressIcon(goal.percentage, goal.isFinished, goal.achieved)}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-muted-foreground">Progresso</span>
+                          <span className={`text-sm font-bold ${getProgressColor(goal.percentage)}`}>
+                            {goal.percentage.toFixed(1)}%
+                          </span>
+                        </div>
+                        <Progress value={Math.min(goal.percentage, 100)} className="h-2" />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Realizado</p>
+                          <p className="text-sm font-semibold text-foreground">
+                            R$ {goal.currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Meta</p>
+                          <p className="text-sm font-semibold text-primary">
+                            R$ {goal.targetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+
+                      {goal.isFinished && (
+                        <div className="pt-2 border-t border-border">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Bônus ({goal.appliedBonusPercentage}%)</p>
+                              <p className={`text-sm font-bold ${goal.bonusValue > 0 ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
+                                R$ {goal.bonusValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </p>
+                            </div>
+                            {goal.achieved && (
+                              <Award className="h-5 w-5 text-yellow-500" />
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

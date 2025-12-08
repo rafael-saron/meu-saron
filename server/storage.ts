@@ -80,6 +80,7 @@ export interface IStorage {
   getUserStores(userId: string): Promise<UserStore[]>;
   setUserStores(userId: string, storeIds: string[]): Promise<void>;
   
+  saleExists(saleCode: string, storeId: string): Promise<boolean>;
   createSale(sale: InsertSale): Promise<Sale>;
   createSaleItem(item: InsertSaleItem): Promise<SaleItem>;
   createSaleReceipt(receipt: InsertSaleReceipt): Promise<SaleReceipt>;
@@ -330,6 +331,14 @@ export class DatabaseStorage implements IStorage {
       }));
       await db.insert(userStores).values(values);
     }
+  }
+  
+  async saleExists(saleCode: string, storeId: string): Promise<boolean> {
+    const [existing] = await db.select({ id: sales.id })
+      .from(sales)
+      .where(and(eq(sales.saleCode, saleCode), eq(sales.storeId, storeId)))
+      .limit(1);
+    return !!existing;
   }
   
   async createSale(insertSale: InsertSale): Promise<Sale> {

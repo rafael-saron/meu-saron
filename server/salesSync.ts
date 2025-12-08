@@ -322,6 +322,183 @@ export class SalesSyncService {
     return results;
   }
 
+  // Additive sync - doesn't delete existing data, only adds new sales
+  async syncStoreAdditive(
+    storeId: string,
+    startDate: string,
+    endDate: string
+  ): Promise<SyncResult> {
+    const syncKey = `additive-${storeId}-${startDate}-${endDate}`;
+    
+    if (this.syncInProgress.get(syncKey)?.status === 'in_progress') {
+      return {
+        success: false,
+        store: storeId,
+        salesCount: 0,
+        error: 'Sincronização já em andamento para este período',
+      };
+    }
+
+    this.syncInProgress.set(syncKey, {
+      store: storeId,
+      status: 'in_progress',
+      salesCount: 0,
+    });
+
+    try {
+      console.log(`[SalesSync-Additive] Iniciando: ${storeId} (${startDate} a ${endDate})`);
+      
+      let salesCount = 0;
+      let skippedExisting = 0;
+      let page = 1;
+      let hasMore = true;
+      const maxPages = 100;
+      
+      const processedSaleCodes = new Set<string>();
+
+      while (hasMore && page <= maxPages) {
+        console.log(`[SalesSync-Additive] ${storeId} - Página ${page}...`);
+        
+        const response = await dapicService.getVendasPDV(storeId, {
+          DataInicial: startDate,
+          DataFinal: endDate,
+          Pagina: page,
+        }) as any;
+
+        const salesData = response?.Resultado || response?.Dados || [];
+        
+        if (!salesData || salesData.length === 0) {
+          console.log(`[SalesSync-Additive] ${storeId} - Sem vendas na página ${page}`);
+          hasMore = false;
+          break;
+        }
+
+        for (const dapicSale of salesData) {
+          try {
+            const saleCode = String(dapicSale.Codigo || dapicSale.CodigoVenda || '');
+            
+            if (processedSaleCodes.has(saleCode)) {
+              continue;
+            }
+            processedSaleCodes.add(saleCode);
+            
+            // Check if sale already exists in database
+            const exists = await storage.saleExists(saleCode, storeId);
+            if (exists) {
+              skippedExisting++;
+              continue;
+            }
+            
+            let paymentMethod: string | null = null;
+            if (dapicSale.Recebimentos && Array.isArray(dapicSale.Recebimentos) && dapicSale.Recebimentos.length > 0) {
+              const rawPaymentMethod = dapicSale.Recebimentos[0].FormaPagamento || '';
+              paymentMethod = this.normalizePaymentMethod(rawPaymentMethod);
+              
+              if (dapicSale.Recebimentos.length > 1) {
+                const allMethods = dapicSale.Recebimentos.map((r: any) => 
+                  this.normalizePaymentMethod(r.FormaPagamento || '')
+                ).filter((m: string) => m);
+                const uniqueMethods = Array.from(new Set(allMethods as string[]));
+                if (uniqueMethods.length > 1) {
+                  paymentMethod = uniqueMethods.join(', ');
+                }
+              }
+            }
+
+            const rawDate = dapicSale.DataFechamento || dapicSale.DataEmissao || dapicSale.Data;
+            const parsedDate = parseDapicDate(rawDate);
+            const totalValue = parseCurrencyValue(dapicSale.ValorLiquido || dapicSale.ValorTotal || 0);
+            
+            const sale: InsertSale = {
+              saleCode,
+              saleDate: parsedDate,
+              totalValue: String(totalValue),
+              sellerName: dapicSale.NomeVendedor || dapicSale.Vendedor || 'Sem Vendedor',
+              clientName: dapicSale.NomeCliente || dapicSale.Cliente || null,
+              storeId: storeId as "saron1" | "saron2" | "saron3",
+              status: dapicSale.Status || 'Finalizado',
+              paymentMethod: paymentMethod,
+            };
+
+            const items: InsertSaleItem[] = [];
+            if (dapicSale.Itens && Array.isArray(dapicSale.Itens)) {
+              for (const dapicItem of dapicSale.Itens) {
+                items.push({
+                  saleId: '',
+                  productCode: String(dapicItem.CodigoProduto || dapicItem.Codigo || ''),
+                  productDescription: dapicItem.Descricao || dapicItem.NomeProduto || 'Sem Descrição',
+                  quantity: String(parseCurrencyValue(dapicItem.Quantidade) || 1),
+                  unitPrice: String(parseCurrencyValue(dapicItem.ValorUnitario || dapicItem.PrecoUnitario || 0)),
+                  totalPrice: String(parseCurrencyValue(dapicItem.ValorTotal || dapicItem.Total || 0)),
+                });
+              }
+            }
+
+            const receipts: InsertSaleReceipt[] = [];
+            if (dapicSale.Recebimentos && Array.isArray(dapicSale.Recebimentos)) {
+              for (const recebimento of dapicSale.Recebimentos) {
+                const rawMethod = recebimento.FormaPagamento || '';
+                const normalizedMethod = this.normalizePaymentMethod(rawMethod);
+                const grossValue = parseFloat(recebimento.ValorBruto || recebimento.Valor || 0);
+                const netValue = parseFloat(recebimento.Valor || recebimento.ValorBruto || 0);
+                
+                if (normalizedMethod && grossValue > 0) {
+                  receipts.push({
+                    saleId: '',
+                    paymentMethod: normalizedMethod,
+                    grossValue: String(grossValue),
+                    netValue: String(netValue),
+                  });
+                }
+              }
+            }
+
+            await storage.createSaleWithItemsAndReceipts(sale, items, receipts);
+            salesCount++;
+          } catch (itemError: any) {
+            console.error(`[SalesSync-Additive] Erro venda ${dapicSale.Codigo}:`, itemError.message);
+          }
+        }
+
+        if (salesData.length < 200) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      }
+      
+      console.log(`[SalesSync-Additive] ${storeId}: ${salesCount} novas, ${skippedExisting} existentes`);
+      
+      this.syncInProgress.set(syncKey, {
+        store: storeId,
+        status: 'completed',
+        salesCount,
+      });
+
+      return {
+        success: true,
+        store: storeId,
+        salesCount,
+      };
+    } catch (error: any) {
+      console.error(`[SalesSync-Additive] Erro ${storeId}:`, error);
+      
+      this.syncInProgress.set(syncKey, {
+        store: storeId,
+        status: 'failed',
+        salesCount: 0,
+        error: error.message,
+      });
+
+      return {
+        success: false,
+        store: storeId,
+        salesCount: 0,
+        error: error.message,
+      };
+    }
+  }
+
   // Get current date in Brazil timezone (UTC-3)
   private getBrazilDate(): Date {
     const now = new Date();

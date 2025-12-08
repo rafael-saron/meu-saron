@@ -2572,6 +2572,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // TEMPORARY: Endpoint to sync 2024 data without auth (REMOVE AFTER USE)
+  // Additive sync for 2024 - won't delete existing data, safe to interrupt
+  app.post("/api/sales/sync/2024-fix", async (req, res) => {
+    try {
+      console.log('[API] Iniciando sincronização ADITIVA de 2024...');
+      
+      const startDate = '2024-01-01';
+      const endDate = '2024-12-31';
+      
+      res.json({
+        message: "Sincronização ADITIVA de 2024 iniciada. Não perde dados existentes.",
+        startDate,
+        endDate,
+      });
+
+      // Run additive sync asynchronously - safe to interrupt
+      (async () => {
+        const stores = ['saron1', 'saron2', 'saron3'];
+        for (const store of stores) {
+          console.log(`[2024-FIX-ADDITIVE] Sincronizando ${store}...`);
+          try {
+            const result = await salesSyncService.syncStoreAdditive(store, startDate, endDate);
+            console.log(`[2024-FIX-ADDITIVE] ${store}: ${result.success ? 'OK' : 'ERRO'} - ${result.salesCount} novas vendas`);
+          } catch (error: any) {
+            console.error(`[2024-FIX-ADDITIVE] ${store}: ERRO - ${error.message}`);
+          }
+        }
+        console.log('[2024-FIX-ADDITIVE] Sincronização de 2024 concluída!');
+      })();
+    } catch (error: any) {
+      console.error('Error syncing 2024:', error);
+      res.status(500).json({ 
+        error: "Erro ao iniciar sincronização de 2024",
+        message: error.message 
+      });
+    }
+  });
+
   app.post("/api/sales/sync/full", async (req, res) => {
     try {
       const userId = req.session.userId;
