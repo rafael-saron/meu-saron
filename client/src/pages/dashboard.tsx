@@ -92,7 +92,7 @@ export default function Dashboard() {
     setIsSyncing(true);
     try {
       const today = new Date();
-      const storeToSync = selectedStore === "todas" ? "todas" : selectedStore;
+      const isAllStores = selectedStore === "todas";
       
       let description = "";
       
@@ -101,18 +101,24 @@ export default function Dashboard() {
         description = "Sincronização completa do histórico concluída.";
       } else if (syncType === 'month') {
         const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-        await apiRequest("POST", "/api/sales/sync", {
-          storeId: storeToSync,
+        const payload: { startDate: string; endDate: string; storeId?: string } = {
           startDate: monthStart.toISOString().split('T')[0],
           endDate: today.toISOString().split('T')[0]
-        });
+        };
+        if (!isAllStores) {
+          payload.storeId = selectedStore;
+        }
+        await apiRequest("POST", "/api/sales/sync", payload);
         description = "Dados do mês atual sincronizados com sucesso.";
       } else {
-        await apiRequest("POST", "/api/sales/sync", {
-          storeId: storeToSync,
+        const payload: { startDate: string; endDate: string; storeId?: string } = {
           startDate: today.toISOString().split('T')[0],
           endDate: today.toISOString().split('T')[0]
-        });
+        };
+        if (!isAllStores) {
+          payload.storeId = selectedStore;
+        }
+        await apiRequest("POST", "/api/sales/sync", payload);
         description = "Dados de hoje sincronizados com sucesso.";
       }
 
