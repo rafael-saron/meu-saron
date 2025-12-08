@@ -2411,6 +2411,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Temporary endpoint for full resync - remove after use
+  app.post("/api/admin/force-full-sync", async (req, res) => {
+    const { secret } = req.body;
+    if (secret !== 'resync-dapic-2025') {
+      return res.status(403).json({ error: "Invalid secret" });
+    }
+    
+    console.log('[API] ADMIN: Forcing full history resync...');
+    
+    try {
+      const results = await salesSyncService.syncFullHistory();
+      const totalSales = results.reduce((sum, r) => sum + r.salesCount, 0);
+      
+      res.json({
+        success: results.every(r => r.success),
+        results,
+        totalSales,
+        message: `Full resync completed: ${totalSales} sales from 2024-01-01`,
+      });
+    } catch (error: any) {
+      console.error('[API] ADMIN: Error in force sync:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/sales/sync/status", async (req, res) => {
     try {
       const userId = req.session.userId;
