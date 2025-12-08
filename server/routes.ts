@@ -2610,6 +2610,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Endpoint to sync a specific month for a specific store (faster, avoids timeout)
+  app.post("/api/sales/sync/month", async (req, res) => {
+    try {
+      const { storeId, year, month } = req.body;
+      
+      if (!storeId || !year || !month) {
+        return res.status(400).json({ error: "storeId, year e month são obrigatórios" });
+      }
+      
+      const validStores = ['saron1', 'saron2', 'saron3'];
+      if (!validStores.includes(storeId)) {
+        return res.status(400).json({ error: "storeId inválido" });
+      }
+      
+      const yearNum = parseInt(year);
+      const monthNum = parseInt(month);
+      
+      if (isNaN(yearNum) || yearNum < 2020 || yearNum > 2025) {
+        return res.status(400).json({ error: "Ano inválido" });
+      }
+      
+      if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+        return res.status(400).json({ error: "Mês inválido (1-12)" });
+      }
+      
+      const monthStr = String(monthNum).padStart(2, '0');
+      const lastDay = new Date(yearNum, monthNum, 0).getDate();
+      
+      const startDate = `${yearNum}-${monthStr}-01`;
+      const endDate = `${yearNum}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+      
+      console.log(`[MONTH-SYNC] Iniciando: ${storeId} ${monthStr}/${yearNum} (${startDate} a ${endDate})`);
+      
+      const result = await salesSyncService.syncStoreAdditive(storeId, startDate, endDate);
+      
+      console.log(`[MONTH-SYNC] Concluído: ${storeId} ${monthStr}/${yearNum} - ${result.salesCount} novas vendas`);
+      
+      res.json({
+        success: result.success,
+        storeId,
+        month: monthNum,
+        year: yearNum,
+        startDate,
+        endDate,
+        newSalesCount: result.salesCount,
+        error: result.error,
+      });
+    } catch (error: any) {
+      console.error('[MONTH-SYNC] Erro:', error);
+      res.status(500).json({ 
+        error: "Erro ao sincronizar mês",
+        message: error.message 
+      });
+    }
+  });
+
   app.post("/api/sales/sync/full", async (req, res) => {
     try {
       const userId = req.session.userId;
