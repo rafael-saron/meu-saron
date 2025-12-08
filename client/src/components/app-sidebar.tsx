@@ -1,4 +1,4 @@
-import { Home, Users, ShoppingBag, Package, DollarSign, Calendar, Bell, MessageCircle, Send, LayoutDashboard, UserCog, LogOut, Target, Wallet, Banknote, TrendingUp, BarChart3 } from "lucide-react";
+import { Home, Users, ShoppingBag, Package, DollarSign, Calendar, Bell, MessageCircle, Send, LayoutDashboard, UserCog, LogOut, Target, Wallet, Banknote, TrendingUp, BarChart3, Award } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -27,6 +27,7 @@ const allMenuItems = [
   { title: "Contas a Pagar", url: "/contas-pagar", icon: DollarSign, roles: ["administrador", "financeiro"] },
   { title: "Metas", url: "/metas", icon: Target, roles: ["administrador", "gerente"] },
   { title: "Metas de Caixa", url: "/metas-caixa", icon: Wallet, roles: ["administrador", "gerente"] },
+  { title: "Minhas Metas", url: "/metas-pessoais", icon: Award, roles: ["vendedor", "gerente"] },
   { title: "Pagamento Bônus", url: "/pagamento-bonus", icon: Banknote, roles: ["administrador", "financeiro"] },
 ];
 

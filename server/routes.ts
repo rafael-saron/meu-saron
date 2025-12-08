@@ -614,10 +614,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Não autenticado" });
       }
 
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "Usuário não encontrado" });
+      }
+
       const { storeId, sellerId, weekStart, weekEnd, type, isActive } = req.query;
       
+      // Determine which storeId to use based on user role
+      let effectiveStoreId = storeId as string | undefined;
+      
+      // For managers, filter by their assigned stores if no specific storeId is requested
+      if (user.role === 'gerente') {
+        const userStoresList = await storage.getUserStores(user.id);
+        const managerStoreIds = userStoresList.length > 0 
+          ? userStoresList.map(us => us.storeId) 
+          : (user.storeId ? [user.storeId] : []);
+        
+        // If a specific storeId is requested, verify the manager has access to it
+        if (storeId && storeId !== 'all') {
+          if (!managerStoreIds.includes(storeId as string)) {
+            return res.status(403).json({ error: "Sem permissão para ver metas desta loja" });
+          }
+          effectiveStoreId = storeId as string;
+        } else {
+          // Get all goals for manager's stores and filter in memory
+          const allGoals = await storage.getSalesGoals({
+            sellerId: sellerId as string | undefined,
+            weekStart: weekStart as string | undefined,
+            weekEnd: weekEnd as string | undefined,
+            type: type as "individual" | "team" | undefined,
+            isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+          });
+          
+          const filteredGoals = allGoals.filter(goal => managerStoreIds.includes(goal.storeId));
+          return res.json(filteredGoals);
+        }
+      }
+      
       const goals = await storage.getSalesGoals({
-        storeId: storeId as string | undefined,
+        storeId: effectiveStoreId,
         sellerId: sellerId as string | undefined,
         weekStart: weekStart as string | undefined,
         weekEnd: weekEnd as string | undefined,
@@ -1133,6 +1169,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Personal goals endpoint for vendedores and gerentes (last 4 weeks with bonus)
+  app.get("/api/goals/personal", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "Usuário não encontrado" });
+      }
+
+      // Only vendedores and gerentes can access personal goals
+      if (user.role !== 'vendedor' && user.role !== 'gerente') {
+        return res.status(403).json({ error: "Sem permissão para acessar metas pessoais" });
+      }
+
+      // Calculate date range for last 4 weeks
+      const now = new Date();
+      const fourWeeksAgo = new Date(now);
+      fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+      const fourWeeksAgoStr = fourWeeksAgo.toISOString().split('T')[0];
+      const todayStr = now.toISOString().split('T')[0];
+
+      // Get all individual goals for this user from the last 4 weeks
+      const allGoals = await storage.getSalesGoals({
+        sellerId: user.id,
+        type: 'individual',
+      });
+
+      // Filter goals that fall within the last 4 weeks
+      const recentGoals = allGoals.filter(goal => {
+        return goal.weekEnd >= fourWeeksAgoStr && goal.weekStart <= todayStr;
+      });
+
+      // Calculate progress and bonus for each goal
+      const goalsWithProgress = await Promise.all(recentGoals.map(async (goal) => {
+        // Get sales for this goal period
+        const sales = await storage.getSales({
+          storeId: goal.storeId,
+          sellerName: user.fullName,
+          startDate: goal.weekStart,
+          endDate: goal.weekEnd,
+        });
+
+        const totalSales = sales.reduce((sum, sale) => {
+          const value = parseFloat(sale.totalValue);
+          return sum + (isNaN(value) ? 0 : value);
+        }, 0);
+
+        const targetValue = parseFloat(goal.targetValue);
+        const percentage = targetValue > 0 ? (totalSales / targetValue) * 100 : 0;
+        const achieved = percentage >= 100;
+
+        // Calculate bonus
+        const bonusPercentageAchieved = user.bonusPercentageAchieved 
+          ? parseFloat(user.bonusPercentageAchieved) 
+          : null;
+        const bonusPercentageNotAchieved = user.bonusPercentageNotAchieved 
+          ? parseFloat(user.bonusPercentageNotAchieved) 
+          : null;
+
+        let bonusValue = 0;
+        let appliedBonusPercentage = 0;
+
+        if (achieved && bonusPercentageAchieved !== null) {
+          appliedBonusPercentage = bonusPercentageAchieved;
+          bonusValue = totalSales * (bonusPercentageAchieved / 100);
+        } else if (!achieved && bonusPercentageNotAchieved !== null) {
+          appliedBonusPercentage = bonusPercentageNotAchieved;
+          bonusValue = totalSales * (bonusPercentageNotAchieved / 100);
+        }
+
+        // Check if this goal's period has ended
+        const isFinished = goal.weekEnd < todayStr;
+
+        return {
+          id: goal.id,
+          storeId: goal.storeId,
+          period: goal.period,
+          weekStart: goal.weekStart,
+          weekEnd: goal.weekEnd,
+          targetValue,
+          currentValue: totalSales,
+          percentage,
+          achieved,
+          isFinished,
+          bonusPercentageAchieved,
+          bonusPercentageNotAchieved,
+          appliedBonusPercentage,
+          bonusValue,
+        };
+      }));
+
+      // Sort by weekStart descending (most recent first)
+      goalsWithProgress.sort((a, b) => {
+        return new Date(b.weekStart).getTime() - new Date(a.weekStart).getTime();
+      });
+
+      res.json({
+        user: {
+          id: user.id,
+          fullName: user.fullName,
+          role: user.role,
+          storeId: user.storeId,
+          bonusPercentageAchieved: user.bonusPercentageAchieved ? parseFloat(user.bonusPercentageAchieved) : null,
+          bonusPercentageNotAchieved: user.bonusPercentageNotAchieved ? parseFloat(user.bonusPercentageNotAchieved) : null,
+        },
+        goals: goalsWithProgress,
+        summary: {
+          totalGoals: goalsWithProgress.length,
+          achievedGoals: goalsWithProgress.filter(g => g.achieved && g.isFinished).length,
+          totalBonus: goalsWithProgress.filter(g => g.isFinished).reduce((sum, g) => sum + g.bonusValue, 0),
+          totalSales: goalsWithProgress.reduce((sum, g) => sum + g.currentValue, 0),
+        }
+      });
+    } catch (error: any) {
+      console.error('Error fetching personal goals:', error);
+      res.status(500).json({ 
+        error: "Erro ao buscar metas pessoais",
+        message: error.message 
+      });
+    }
+  });
+
   // Cashier goals routes
   app.get("/api/cashier-goals", async (req, res) => {
     try {
@@ -1141,10 +1303,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Não autenticado" });
       }
 
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "Usuário não encontrado" });
+      }
+
       const { storeId, cashierId, isActive } = req.query;
       
+      // Determine which storeId to use based on user role
+      let effectiveStoreId = storeId as string | undefined;
+      
+      // For managers, filter by their assigned stores if no specific storeId is requested
+      if (user.role === 'gerente') {
+        const userStoresList = await storage.getUserStores(user.id);
+        const managerStoreIds = userStoresList.length > 0 
+          ? userStoresList.map(us => us.storeId) 
+          : (user.storeId ? [user.storeId] : []);
+        
+        // If a specific storeId is requested, verify the manager has access to it
+        if (storeId && storeId !== 'all') {
+          if (!managerStoreIds.includes(storeId as string)) {
+            return res.status(403).json({ error: "Sem permissão para ver metas de caixa desta loja" });
+          }
+          effectiveStoreId = storeId as string;
+        } else {
+          // Get all cashier goals and filter by manager's stores
+          const allGoals = await storage.getCashierGoals({
+            cashierId: cashierId as string | undefined,
+            isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+          });
+          
+          const filteredGoals = allGoals.filter(goal => managerStoreIds.includes(goal.storeId));
+          return res.json(filteredGoals);
+        }
+      }
+      
       const goals = await storage.getCashierGoals({
-        storeId: storeId as string | undefined,
+        storeId: effectiveStoreId,
         cashierId: cashierId as string | undefined,
         isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
       });
@@ -2408,31 +2603,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: "Erro ao sincronizar histórico completo",
         message: error.message 
       });
-    }
-  });
-
-  // Temporary endpoint for full resync - remove after use
-  app.post("/api/admin/force-full-sync", async (req, res) => {
-    const { secret } = req.body;
-    if (secret !== 'resync-dapic-2025') {
-      return res.status(403).json({ error: "Invalid secret" });
-    }
-    
-    console.log('[API] ADMIN: Forcing full history resync...');
-    
-    try {
-      const results = await salesSyncService.syncFullHistory();
-      const totalSales = results.reduce((sum, r) => sum + r.salesCount, 0);
-      
-      res.json({
-        success: results.every(r => r.success),
-        results,
-        totalSales,
-        message: `Full resync completed: ${totalSales} sales from 2024-01-01`,
-      });
-    } catch (error: any) {
-      console.error('[API] ADMIN: Error in force sync:', error);
-      res.status(500).json({ error: error.message });
     }
   });
 

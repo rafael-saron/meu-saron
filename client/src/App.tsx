@@ -26,6 +26,7 @@ import Anonimo from "@/pages/anonimo";
 import Usuarios from "@/pages/usuarios";
 import Perfil from "@/pages/perfil";
 import ReceitaDiaria from "@/pages/receita-diaria";
+import MetasPessoais from "@/pages/metas-pessoais";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRouter() {
@@ -47,6 +48,7 @@ function AuthenticatedRouter() {
       <Route path="/usuarios" component={Usuarios} />
       <Route path="/perfil" component={Perfil} />
       <Route path="/financeiro/receita-diaria" component={ReceitaDiaria} />
+      <Route path="/metas-pessoais" component={MetasPessoais} />
       <Route component={NotFound} />
     </Switch>
   );
