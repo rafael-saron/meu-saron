@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Users, ShoppingBag, Package, DollarSign, Calendar, TrendingUp, RefreshCw } from "lucide-react";
+import { Users, ShoppingBag, Package, DollarSign, Calendar, TrendingUp, RefreshCw, ChevronDown, Database } from "lucide-react";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
@@ -13,6 +13,13 @@ import { useUser } from "@/lib/user-context";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 function parseBrazilianDate(dateStr: string): Date | null {
   if (!dateStr) return null;
@@ -81,17 +88,33 @@ export default function Dashboard() {
     }
   }, [user, selectedStore]);
 
-  const handleRefreshData = async () => {
+  const handleRefreshData = async (syncType: 'today' | 'month' | 'full' = 'today') => {
     setIsSyncing(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date();
       const storeToSync = selectedStore === "todas" ? "todas" : selectedStore;
       
-      await apiRequest("POST", "/api/sales/sync", {
-        storeId: storeToSync,
-        startDate: today,
-        endDate: today
-      });
+      let description = "";
+      
+      if (syncType === 'full') {
+        await apiRequest("POST", "/api/sales/sync/full", {});
+        description = "Sincronização completa do histórico concluída.";
+      } else if (syncType === 'month') {
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        await apiRequest("POST", "/api/sales/sync", {
+          storeId: storeToSync,
+          startDate: monthStart.toISOString().split('T')[0],
+          endDate: today.toISOString().split('T')[0]
+        });
+        description = "Dados do mês atual sincronizados com sucesso.";
+      } else {
+        await apiRequest("POST", "/api/sales/sync", {
+          storeId: storeToSync,
+          startDate: today.toISOString().split('T')[0],
+          endDate: today.toISOString().split('T')[0]
+        });
+        description = "Dados de hoje sincronizados com sucesso.";
+      }
 
       await queryClient.invalidateQueries({ queryKey: ['/api/dapic'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
@@ -100,7 +123,7 @@ export default function Dashboard() {
 
       toast({
         title: "Dados atualizados",
-        description: "Os dados foram sincronizados com o Dapic com sucesso.",
+        description,
       });
     } catch (error: any) {
       toast({
@@ -298,16 +321,60 @@ export default function Dashboard() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefreshData}
-            disabled={isSyncing}
-            data-testid="button-refresh-data"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
-            {isSyncing ? 'Atualizando...' : 'Atualizar Dados'}
-          </Button>
+          {user?.role === 'administrador' ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isSyncing}
+                  data-testid="button-refresh-data"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+                  {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem 
+                  onClick={() => handleRefreshData('today')}
+                  disabled={isSyncing}
+                  data-testid="menu-sync-today"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Atualizar Hoje
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => handleRefreshData('month')}
+                  disabled={isSyncing}
+                  data-testid="menu-sync-month"
+                >
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Sincronizar Mês Atual
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={() => handleRefreshData('full')}
+                  disabled={isSyncing}
+                  data-testid="menu-sync-full"
+                >
+                  <Database className="h-4 w-4 mr-2" />
+                  Sincronização Completa (Histórico)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleRefreshData('today')}
+              disabled={isSyncing}
+              data-testid="button-refresh-data"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Atualizando...' : 'Atualizar Dados'}
+            </Button>
+          )}
           {canChangeStore && <StoreSelector value={selectedStore} onChange={setSelectedStore} />}
         </div>
       </div>
