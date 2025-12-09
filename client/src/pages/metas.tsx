@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,13 +28,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Target, Plus, Pencil, Trash2, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { format, startOfWeek, endOfWeek, addWeeks, startOfMonth, endOfMonth } from "date-fns";
+import { 
+  Target, Plus, Trash2, TrendingUp, TrendingDown, Minus, 
+  Calendar, Users, User, Search, Filter, ChevronDown, ChevronUp,
+  CalendarDays, CalendarRange
+} from "lucide-react";
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import type { SalesGoal, User } from "@shared/schema";
+import type { SalesGoal, User as UserType } from "@shared/schema";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface GoalProgress {
   goalId: string | null;
@@ -49,14 +59,20 @@ interface GoalProgress {
 export default function Metas() {
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [selectedGoal, setSelectedGoal] = useState<SalesGoal | null>(null);
+  const [activeTab, setActiveTab] = useState("current");
+  
+  // Filters
   const [storeFilter, setStoreFilter] = useState<string>("all");
+  const [periodFilter, setPeriodFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
 
   const { data: goals = [], isLoading } = useQuery<SalesGoal[]>({
     queryKey: ["/api/goals?isActive=true"],
   });
 
-  const { data: users = [] } = useQuery<User[]>({
+  const { data: users = [] } = useQuery<UserType[]>({
     queryKey: ["/api/users"],
     staleTime: 0,
     refetchOnMount: "always",
@@ -73,8 +89,20 @@ export default function Metas() {
       toast({ title: "Meta criada com sucesso" });
       setIsCreateDialogOpen(false);
     },
-    onError: () => {
-      toast({ title: "Erro ao criar meta", variant: "destructive" });
+    onError: async (error: any) => {
+      let errorMessage = "Erro ao criar meta";
+      try {
+        const response = error.response || error;
+        if (response?.json) {
+          const data = await response.json();
+          errorMessage = data.error || errorMessage;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+      } catch (e) {
+        console.error("Error parsing error response:", e);
+      }
+      toast({ title: errorMessage, variant: "destructive" });
     },
   });
 
@@ -93,15 +121,47 @@ export default function Metas() {
     },
   });
 
-  const filteredGoals = storeFilter === "all" 
-    ? goals 
-    : goals.filter(g => g.storeId === storeFilter);
+  // Filter and group goals
+  const { weeklyGoals, monthlyGoals, currentPeriodGoals, pastGoals } = useMemo(() => {
+    const today = new Date();
+    
+    let filtered = goals.filter(goal => {
+      if (storeFilter !== "all" && goal.storeId !== storeFilter) return false;
+      if (periodFilter !== "all" && goal.period !== periodFilter) return false;
+      if (typeFilter !== "all" && goal.type !== typeFilter) return false;
+      if (searchTerm) {
+        const seller = goal.sellerId ? users.find(u => u.id === goal.sellerId) : null;
+        const sellerName = seller?.fullName?.toLowerCase() || "";
+        const storeName = getStoreLabel(goal.storeId).toLowerCase();
+        if (!sellerName.includes(searchTerm.toLowerCase()) && 
+            !storeName.includes(searchTerm.toLowerCase())) {
+          return false;
+        }
+      }
+      return true;
+    });
 
-  const getWeekLabel = (weekStart: string, weekEnd: string) => {
-    const start = new Date(weekStart + 'T00:00:00');
-    const end = new Date(weekEnd + 'T00:00:00');
-    return `${format(start, 'dd/MM', { locale: ptBR })} - ${format(end, 'dd/MM/yyyy', { locale: ptBR })}`;
-  };
+    const weekly = filtered.filter(g => g.period === "weekly");
+    const monthly = filtered.filter(g => g.period === "monthly");
+    
+    const current = filtered.filter(goal => {
+      const start = parseISO(goal.weekStart);
+      const end = parseISO(goal.weekEnd);
+      return isWithinInterval(today, { start, end });
+    });
+
+    const past = filtered.filter(goal => {
+      const end = parseISO(goal.weekEnd);
+      return end < today;
+    });
+
+    return {
+      weeklyGoals: weekly,
+      monthlyGoals: monthly,
+      currentPeriodGoals: current,
+      pastGoals: past,
+    };
+  }, [goals, storeFilter, periodFilter, typeFilter, searchTerm, users]);
 
   const getStoreLabel = (storeId: string) => {
     const storeLabels: Record<string, string> = {
@@ -112,16 +172,32 @@ export default function Metas() {
     return storeLabels[storeId] || storeId;
   };
 
+  const getWeekLabel = (weekStart: string, weekEnd: string) => {
+    const start = new Date(weekStart + 'T00:00:00');
+    const end = new Date(weekEnd + 'T00:00:00');
+    return `${format(start, 'dd/MM', { locale: ptBR })} - ${format(end, 'dd/MM/yyyy', { locale: ptBR })}`;
+  };
+
+  const clearFilters = () => {
+    setStoreFilter("all");
+    setPeriodFilter("all");
+    setTypeFilter("all");
+    setSearchTerm("");
+  };
+
+  const hasActiveFilters = storeFilter !== "all" || periodFilter !== "all" || typeFilter !== "all" || searchTerm !== "";
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-display font-semibold text-foreground flex items-center gap-2" data-testid="text-page-title">
-            <Target className="h-8 w-8 text-primary" />
+          <h1 className="text-2xl font-display font-semibold text-foreground flex items-center gap-2" data-testid="text-page-title">
+            <Target className="h-7 w-7 text-primary" />
             Gestão de Metas
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Configure e acompanhe as metas de vendas semanais
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Configure e acompanhe metas de vendas
           </p>
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -135,7 +211,7 @@ export default function Metas() {
             <DialogHeader>
               <DialogTitle>Criar Nova Meta</DialogTitle>
               <DialogDescription>
-                Configure uma meta semanal para loja ou vendedor
+                Configure uma meta para loja ou vendedor
               </DialogDescription>
             </DialogHeader>
             <GoalForm
@@ -147,114 +223,295 @@ export default function Metas() {
         </Dialog>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="flex-1">
-          <Select value={storeFilter} onValueChange={setStoreFilter}>
-            <SelectTrigger data-testid="select-store-filter">
-              <SelectValue placeholder="Filtrar por loja" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as Lojas</SelectItem>
-              <SelectItem value="saron1">Saron 1</SelectItem>
-              <SelectItem value="saron2">Saron 2</SelectItem>
-              <SelectItem value="saron3">Saron 3</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {filteredGoals.length > 0 && (
-        <div>
-          <h2 className="text-xl font-semibold text-foreground mb-4">Progresso das Metas</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredGoals.map((goal) => (
-              <GoalProgressCard
-                key={goal.id}
-                goal={goal}
-                users={users}
-                getStoreLabel={getStoreLabel}
-                getWeekLabel={getWeekLabel}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
+      {/* Filters */}
       <Card>
-        <CardHeader>
-          <CardTitle>Metas Ativas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Carregando metas...
-            </div>
-          ) : filteredGoals.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Nenhuma meta encontrada
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Loja</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Vendedor</TableHead>
-                  <TableHead>Período</TableHead>
-                  <TableHead>Meta</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredGoals.map((goal) => {
-                  const seller = goal.sellerId 
-                    ? users.find(u => u.id === goal.sellerId) 
-                    : null;
-                  
-                  return (
-                    <TableRow key={goal.id} data-testid={`row-goal-${goal.id}`}>
-                      <TableCell className="font-medium">
-                        {getStoreLabel(goal.storeId)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={goal.type === "individual" ? "default" : "secondary"}>
-                          {goal.type === "individual" ? "Individual" : "Conjunta"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {seller ? seller.fullName : "-"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {getWeekLabel(goal.weekStart, goal.weekEnd)}
-                      </TableCell>
-                      <TableCell className="font-semibold text-primary">
-                        R$ {parseFloat(goal.targetValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            data-testid={`button-delete-goal-${goal.id}`}
-                            onClick={() => {
-                              if (confirm("Deseja realmente excluir esta meta?")) {
-                                deleteMutation.mutate(goal.id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
+        <Collapsible open={showFilters} onOpenChange={setShowFilters}>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">Filtros</CardTitle>
+                  {hasActiveFilters && (
+                    <Badge variant="secondary" className="text-xs">
+                      {[storeFilter !== "all", periodFilter !== "all", typeFilter !== "all", searchTerm !== ""].filter(Boolean).length} ativos
+                    </Badge>
+                  )}
+                </div>
+                {showFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0 pb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div className="lg:col-span-1">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Buscar</Label>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Loja ou vendedor..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-8"
+                      data-testid="input-search"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Loja</Label>
+                  <Select value={storeFilter} onValueChange={setStoreFilter}>
+                    <SelectTrigger data-testid="select-store-filter">
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as Lojas</SelectItem>
+                      <SelectItem value="saron1">Saron 1</SelectItem>
+                      <SelectItem value="saron2">Saron 2</SelectItem>
+                      <SelectItem value="saron3">Saron 3</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Período</Label>
+                  <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                    <SelectTrigger data-testid="select-period-filter">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="weekly">Semanal</SelectItem>
+                      <SelectItem value="monthly">Mensal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Tipo</Label>
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger data-testid="select-type-filter">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="individual">Individual</SelectItem>
+                      <SelectItem value="team">Conjunta</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end">
+                  <Button 
+                    variant="outline" 
+                    onClick={clearFilters}
+                    disabled={!hasActiveFilters}
+                    className="w-full"
+                    data-testid="button-clear-filters"
+                  >
+                    Limpar
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="current" className="gap-1.5" data-testid="tab-current">
+            <Target className="h-4 w-4" />
+            <span className="hidden sm:inline">Em Andamento</span>
+            <span className="sm:hidden">Atual</span>
+            {currentPeriodGoals.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                {currentPeriodGoals.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="weekly" className="gap-1.5" data-testid="tab-weekly">
+            <CalendarDays className="h-4 w-4" />
+            <span className="hidden sm:inline">Semanais</span>
+            <span className="sm:hidden">Sem.</span>
+            {weeklyGoals.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                {weeklyGoals.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="monthly" className="gap-1.5" data-testid="tab-monthly">
+            <CalendarRange className="h-4 w-4" />
+            <span className="hidden sm:inline">Mensais</span>
+            <span className="sm:hidden">Mens.</span>
+            {monthlyGoals.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                {monthlyGoals.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Current Period Goals */}
+        <TabsContent value="current" className="space-y-4">
+          {isLoading ? (
+            <LoadingState />
+          ) : currentPeriodGoals.length === 0 ? (
+            <EmptyState message="Nenhuma meta em andamento no período atual" />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {currentPeriodGoals.map((goal) => (
+                <GoalProgressCard
+                  key={goal.id}
+                  goal={goal}
+                  users={users}
+                  getStoreLabel={getStoreLabel}
+                  getWeekLabel={getWeekLabel}
+                  onDelete={(id) => {
+                    if (confirm("Deseja realmente excluir esta meta?")) {
+                      deleteMutation.mutate(id);
+                    }
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Weekly Goals */}
+        <TabsContent value="weekly" className="space-y-4">
+          {isLoading ? (
+            <LoadingState />
+          ) : weeklyGoals.length === 0 ? (
+            <EmptyState message="Nenhuma meta semanal encontrada" />
+          ) : (
+            <GoalsTable 
+              goals={weeklyGoals}
+              users={users}
+              getStoreLabel={getStoreLabel}
+              getWeekLabel={getWeekLabel}
+              onDelete={(id) => {
+                if (confirm("Deseja realmente excluir esta meta?")) {
+                  deleteMutation.mutate(id);
+                }
+              }}
+            />
+          )}
+        </TabsContent>
+
+        {/* Monthly Goals */}
+        <TabsContent value="monthly" className="space-y-4">
+          {isLoading ? (
+            <LoadingState />
+          ) : monthlyGoals.length === 0 ? (
+            <EmptyState message="Nenhuma meta mensal encontrada" />
+          ) : (
+            <GoalsTable 
+              goals={monthlyGoals}
+              users={users}
+              getStoreLabel={getStoreLabel}
+              getWeekLabel={getWeekLabel}
+              onDelete={(id) => {
+                if (confirm("Deseja realmente excluir esta meta?")) {
+                  deleteMutation.mutate(id);
+                }
+              }}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="text-center py-12 text-muted-foreground">
+      Carregando metas...
+    </div>
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <Card>
+      <CardContent className="py-12">
+        <div className="text-center text-muted-foreground">
+          <Target className="h-12 w-12 mx-auto mb-3 opacity-20" />
+          <p>{message}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function GoalsTable({ 
+  goals, 
+  users, 
+  getStoreLabel, 
+  getWeekLabel,
+  onDelete 
+}: { 
+  goals: SalesGoal[];
+  users: UserType[];
+  getStoreLabel: (storeId: string) => string;
+  getWeekLabel: (weekStart: string, weekEnd: string) => string;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Loja</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Vendedor</TableHead>
+              <TableHead>Período</TableHead>
+              <TableHead>Meta</TableHead>
+              <TableHead className="text-right w-[80px]">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {goals.map((goal) => {
+              const seller = goal.sellerId 
+                ? users.find(u => u.id === goal.sellerId) 
+                : null;
+              
+              return (
+                <TableRow key={goal.id} data-testid={`row-goal-${goal.id}`}>
+                  <TableCell className="font-medium">
+                    {getStoreLabel(goal.storeId)}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={goal.type === "individual" ? "default" : "secondary"}>
+                      {goal.type === "individual" ? "Individual" : "Conjunta"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {seller ? seller.fullName : "-"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {getWeekLabel(goal.weekStart, goal.weekEnd)}
+                  </TableCell>
+                  <TableCell className="font-semibold text-primary">
+                    R$ {parseFloat(goal.targetValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      data-testid={`button-delete-goal-${goal.id}`}
+                      onClick={() => onDelete(goal.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -263,7 +520,7 @@ function GoalForm({
   onSubmit, 
   isLoading 
 }: { 
-  users: User[]; 
+  users: UserType[]; 
   onSubmit: (data: any) => void; 
   isLoading: boolean;
 }) {
@@ -276,8 +533,6 @@ function GoalForm({
   const today = new Date();
   const weekStart = startOfWeek(today, { weekStartsOn: 0 });
   const weekEnd = endOfWeek(today, { weekStartsOn: 0 });
-  const monthStart = startOfMonth(today);
-  const monthEnd = endOfMonth(today);
   
   const [weekStartDate, setWeekStartDate] = useState(format(weekStart, 'yyyy-MM-dd'));
   const [weekEndDate, setWeekEndDate] = useState(format(weekEnd, 'yyyy-MM-dd'));
@@ -320,34 +575,56 @@ function GoalForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label>Tipo de Meta</Label>
-        <Select value={type} onValueChange={(value: any) => setType(value)}>
-          <SelectTrigger data-testid="select-goal-type">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="team">Conjunta (Loja)</SelectItem>
-            <SelectItem value="individual">Individual (Vendedor)</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label className="text-xs">Tipo de Meta</Label>
+          <Select value={type} onValueChange={(value: any) => setType(value)}>
+            <SelectTrigger data-testid="select-goal-type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="team">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Conjunta
+                </div>
+              </SelectItem>
+              <SelectItem value="individual">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Individual
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label className="text-xs">Período</Label>
+          <Select value={period} onValueChange={(value: any) => setPeriod(value)}>
+            <SelectTrigger data-testid="select-goal-period">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="weekly">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4" />
+                  Semanal
+                </div>
+              </SelectItem>
+              <SelectItem value="monthly">
+                <div className="flex items-center gap-2">
+                  <CalendarRange className="h-4 w-4" />
+                  Mensal
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div>
-        <Label>Período</Label>
-        <Select value={period} onValueChange={(value: any) => setPeriod(value)}>
-          <SelectTrigger data-testid="select-goal-period">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="weekly">Semanal</SelectItem>
-            <SelectItem value="monthly">Mensal</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div>
-        <Label>Loja</Label>
+        <Label className="text-xs">Loja</Label>
         <Select value={storeId} onValueChange={setStoreId}>
           <SelectTrigger data-testid="select-store">
             <SelectValue />
@@ -362,7 +639,7 @@ function GoalForm({
 
       {type === "individual" && (
         <div>
-          <Label>Colaborador</Label>
+          <Label className="text-xs">Colaborador</Label>
           <Select key={storeId} value={sellerId} onValueChange={setSellerId} required>
             <SelectTrigger data-testid="select-seller">
               <SelectValue placeholder="Selecione um colaborador" />
@@ -384,9 +661,9 @@ function GoalForm({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>Início {period === "weekly" ? "da Semana" : "do Mês"}</Label>
+          <Label className="text-xs">Início {period === "weekly" ? "da Semana" : "do Mês"}</Label>
           <Input
             type="date"
             value={weekStartDate}
@@ -396,7 +673,7 @@ function GoalForm({
           />
         </div>
         <div>
-          <Label>Fim {period === "weekly" ? "da Semana" : "do Mês"}</Label>
+          <Label className="text-xs">Fim {period === "weekly" ? "da Semana" : "do Mês"}</Label>
           <Input
             type="date"
             value={weekEndDate}
@@ -408,7 +685,7 @@ function GoalForm({
       </div>
 
       <div>
-        <Label>Valor da Meta (R$)</Label>
+        <Label className="text-xs">Valor da Meta (R$)</Label>
         <Input
           type="number"
           step="0.01"
@@ -421,7 +698,7 @@ function GoalForm({
         />
       </div>
 
-      <div className="flex justify-end gap-2 pt-4">
+      <div className="flex justify-end gap-2 pt-2">
         <Button type="submit" disabled={isLoading} data-testid="button-submit-goal">
           {isLoading ? "Criando..." : "Criar Meta"}
         </Button>
@@ -434,12 +711,14 @@ function GoalProgressCard({
   goal, 
   users, 
   getStoreLabel, 
-  getWeekLabel 
+  getWeekLabel,
+  onDelete
 }: { 
   goal: SalesGoal; 
-  users: User[]; 
+  users: UserType[]; 
   getStoreLabel: (storeId: string) => string; 
   getWeekLabel: (weekStart: string, weekEnd: string) => string;
+  onDelete: (id: string) => void;
 }) {
   const { data: progress, isLoading } = useQuery<GoalProgress>({
     queryKey: [`/api/goals/progress?goalId=${goal.id}`],
@@ -464,37 +743,55 @@ function GoalProgressCard({
     return "text-red-600 dark:text-red-400";
   };
 
+  const periodIcon = goal.period === "monthly" ? (
+    <CalendarRange className="h-3.5 w-3.5" />
+  ) : (
+    <CalendarDays className="h-3.5 w-3.5" />
+  );
+
   return (
-    <Card data-testid={`card-progress-${goal.id}`}>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
+    <Card data-testid={`card-progress-${goal.id}`} className="hover-elevate">
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-base font-semibold flex items-center gap-2 flex-wrap">
               {getStoreLabel(goal.storeId)}
               <Badge variant={goal.type === "individual" ? "default" : "secondary"} className="text-xs">
                 {goal.type === "individual" ? "Individual" : "Conjunta"}
               </Badge>
             </CardTitle>
             {seller && (
-              <p className="text-sm text-muted-foreground mt-1">{seller.fullName}</p>
+              <p className="text-sm text-muted-foreground mt-1 truncate">{seller.fullName}</p>
             )}
-            <p className="text-xs text-muted-foreground mt-1">
-              {getWeekLabel(goal.weekStart, goal.weekEnd)}
-            </p>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+              {periodIcon}
+              <span>{getWeekLabel(goal.weekStart, goal.weekEnd)}</span>
+            </div>
           </div>
-          {!isLoading && getProgressIcon()}
+          <div className="flex items-center gap-1">
+            {!isLoading && getProgressIcon()}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => onDelete(goal.id)}
+              data-testid={`button-delete-card-${goal.id}`}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {isLoading ? (
           <div className="text-center py-4 text-sm text-muted-foreground">
-            Carregando progresso...
+            Carregando...
           </div>
         ) : (
           <>
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-muted-foreground">Progresso</span>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Progresso</span>
                 <span className={`text-sm font-bold ${getProgressColor()}`}>
                   {percentage.toFixed(1)}%
                 </span>
@@ -502,14 +799,14 @@ function GoalProgressCard({
               <Progress value={cappedPercentage} className="h-2" />
             </div>
             
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <div className="space-y-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-0.5">
                 <p className="text-xs text-muted-foreground">Realizado</p>
                 <p className="text-sm font-semibold text-foreground">
                   R$ {(progress?.currentValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <p className="text-xs text-muted-foreground">Meta</p>
                 <p className="text-sm font-semibold text-primary">
                   R$ {parseFloat(goal.targetValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}

@@ -35,7 +35,7 @@ import {
   type InsertCashierGoal,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, or, desc, count, gte, lte, sql } from "drizzle-orm";
+import { eq, and, or, desc, count, gte, lte, sql, isNull } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -315,6 +315,49 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSalesGoal(id: string): Promise<void> {
     await db.delete(salesGoals).where(eq(salesGoals.id, id));
+  }
+
+  async checkOverlappingGoals(params: {
+    storeId: string;
+    sellerId: string | null;
+    type: "individual" | "team";
+    period: "weekly" | "monthly";
+    weekStart: string;
+    weekEnd: string;
+    excludeId?: string;
+  }): Promise<SalesGoal[]> {
+    const conditions = [
+      eq(salesGoals.storeId, params.storeId),
+      eq(salesGoals.type, params.type),
+      eq(salesGoals.period, params.period),
+      eq(salesGoals.isActive, true),
+      or(
+        and(
+          lte(salesGoals.weekStart, params.weekStart),
+          gte(salesGoals.weekEnd, params.weekStart)
+        ),
+        and(
+          lte(salesGoals.weekStart, params.weekEnd),
+          gte(salesGoals.weekEnd, params.weekEnd)
+        ),
+        and(
+          gte(salesGoals.weekStart, params.weekStart),
+          lte(salesGoals.weekEnd, params.weekEnd)
+        )
+      )
+    ];
+
+    if (params.type === "individual" && params.sellerId) {
+      conditions.push(eq(salesGoals.sellerId, params.sellerId));
+    } else if (params.type === "team") {
+      conditions.push(isNull(salesGoals.sellerId));
+    }
+
+    if (params.excludeId) {
+      conditions.push(sql`${salesGoals.id} != ${params.excludeId}`);
+    }
+
+    return await db.select().from(salesGoals).where(and(...conditions));
   }
   
   async getUserStores(userId: string): Promise<UserStore[]> {

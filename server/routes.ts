@@ -687,6 +687,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         createdById: userId,
       });
+
+      const overlappingGoals = await storage.checkOverlappingGoals({
+        storeId: validatedData.storeId,
+        sellerId: validatedData.sellerId || null,
+        type: validatedData.type,
+        period: validatedData.period || "weekly",
+        weekStart: validatedData.weekStart,
+        weekEnd: validatedData.weekEnd,
+      });
+
+      if (overlappingGoals.length > 0) {
+        const periodLabel = validatedData.period === "monthly" ? "mensal" : "semanal";
+        const typeLabel = validatedData.type === "individual" ? "individual" : "conjunta";
+        return res.status(409).json({ 
+          error: `Já existe uma meta ${typeLabel} ${periodLabel} para este período que sobrepõe as datas selecionadas.`,
+          overlappingGoals: overlappingGoals.map(g => ({
+            id: g.id,
+            weekStart: g.weekStart,
+            weekEnd: g.weekEnd
+          }))
+        });
+      }
       
       const newGoal = await storage.createSalesGoal(validatedData);
       res.json(newGoal);
@@ -712,7 +734,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { id } = req.params;
-      const updatedGoal = await storage.updateSalesGoal(id, req.body);
+      
+      const existingGoal = await storage.getSalesGoals({ id });
+      if (existingGoal.length === 0) {
+        return res.status(404).json({ error: "Meta não encontrada" });
+      }
+      
+      const currentGoal = existingGoal[0];
+      const updateData = req.body;
+      
+      const storeId = updateData.storeId || currentGoal.storeId;
+      const sellerId = updateData.sellerId !== undefined ? updateData.sellerId : currentGoal.sellerId;
+      const type = updateData.type || currentGoal.type;
+      const period = updateData.period || currentGoal.period;
+      const weekStart = updateData.weekStart || currentGoal.weekStart;
+      const weekEnd = updateData.weekEnd || currentGoal.weekEnd;
+      
+      if (updateData.weekStart || updateData.weekEnd || updateData.storeId || 
+          updateData.sellerId !== undefined || updateData.type || updateData.period) {
+        const overlappingGoals = await storage.checkOverlappingGoals({
+          storeId,
+          sellerId,
+          type: type as "individual" | "team",
+          period: period as "weekly" | "monthly",
+          weekStart,
+          weekEnd,
+          excludeId: id,
+        });
+
+        if (overlappingGoals.length > 0) {
+          const periodLabel = period === "monthly" ? "mensal" : "semanal";
+          const typeLabel = type === "individual" ? "individual" : "conjunta";
+          return res.status(409).json({ 
+            error: `Já existe uma meta ${typeLabel} ${periodLabel} para este período que sobrepõe as datas selecionadas.`,
+            overlappingGoals: overlappingGoals.map(g => ({
+              id: g.id,
+              weekStart: g.weekStart,
+              weekEnd: g.weekEnd
+            }))
+          });
+        }
+      }
+
+      const updatedGoal = await storage.updateSalesGoal(id, updateData);
       res.json(updatedGoal);
     } catch (error: any) {
       console.error('Error updating goal:', error);
