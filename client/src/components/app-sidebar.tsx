@@ -27,7 +27,7 @@ const allMenuItems = [
   { title: "Contas a Pagar", url: "/contas-pagar", icon: DollarSign, roles: ["administrador", "financeiro"] },
   { title: "Metas", url: "/metas", icon: Target, roles: ["administrador", "gerente"] },
   { title: "Metas de Caixa", url: "/metas-caixa", icon: Wallet, roles: ["administrador", "gerente"] },
-  { title: "Minhas Metas", url: "/metas-pessoais", icon: Award, roles: ["vendedor", "gerente"] },
+  { title: "Minhas Metas", url: "/metas-pessoais", icon: Award, roles: ["vendedor", "gerente", "caixa"] },
   { title: "Pagamento Bônus", url: "/pagamento-bonus", icon: Banknote, roles: ["administrador", "financeiro"] },
 ];
 

@@ -60,7 +60,15 @@ export default function Calendario() {
   const endDate = new Date(year, month + 1, 0).toISOString();
   
   const { data: events = [], isLoading } = useQuery<ScheduleEvent[]>({
-    queryKey: ['/api/schedule', { startDate, endDate }],
+    queryKey: ['/api/schedule', startDate, endDate],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set('startDate', startDate);
+      params.set('endDate', endDate);
+      const res = await fetch(`/api/schedule?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch schedule');
+      return res.json();
+    },
   });
 
   const [formData, setFormData] = useState({
@@ -189,8 +197,9 @@ export default function Calendario() {
     });
   };
 
-  const formatTime = (dateStr: string) => {
-    return new Date(dateStr).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const formatTime = (dateStr: string | Date) => {
+    const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   };
 
   const getUserName = (userId: string) => {

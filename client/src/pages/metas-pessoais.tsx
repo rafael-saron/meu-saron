@@ -22,6 +22,11 @@ interface PersonalGoal {
   bonusPercentageNotAchieved: number;
   appliedBonusPercentage: number;
   bonusValue: number;
+  // Cashier-specific fields
+  isCashierGoal?: boolean;
+  paymentMethods?: string[];
+  totalStoreSales?: number;
+  targetMethodSales?: number;
 }
 
 interface PersonalGoalsResponse {
@@ -40,6 +45,7 @@ interface PersonalGoalsResponse {
     totalBonus: number;
     totalSales: number;
   };
+  isCashierData?: boolean;
 }
 
 export default function MetasPessoais() {
@@ -47,7 +53,7 @@ export default function MetasPessoais() {
 
   const { data, isLoading, error } = useQuery<PersonalGoalsResponse>({
     queryKey: ["/api/goals/personal"],
-    enabled: !!user && (user.role === "vendedor" || user.role === "gerente"),
+    enabled: !!user && (user.role === "vendedor" || user.role === "gerente" || user.role === "caixa"),
   });
 
   const getWeekLabel = (weekStart: string, weekEnd: string) => {
@@ -84,13 +90,13 @@ export default function MetasPessoais() {
     return "text-red-600 dark:text-red-400";
   };
 
-  if (!user || (user.role !== "vendedor" && user.role !== "gerente")) {
+  if (!user || (user.role !== "vendedor" && user.role !== "gerente" && user.role !== "caixa")) {
     return (
       <div className="text-center py-12">
         <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
         <h2 className="text-xl font-semibold text-foreground mb-2">Acesso Restrito</h2>
         <p className="text-muted-foreground">
-          Esta página é exclusiva para vendedores e gerentes.
+          Esta página é exclusiva para vendedores, gerentes e caixas.
         </p>
       </div>
     );
@@ -134,7 +140,7 @@ export default function MetasPessoais() {
     );
   }
 
-  const { goals, summary } = data;
+  const { goals, summary, isCashierData } = data;
 
   return (
     <div className="space-y-6">
@@ -144,7 +150,10 @@ export default function MetasPessoais() {
           Minhas Metas
         </h1>
         <p className="text-muted-foreground mt-1">
-          Acompanhe suas metas individuais e bônus das últimas 4 semanas
+          {isCashierData 
+            ? "Acompanhe suas metas de caixa e bônus das últimas 4 semanas"
+            : "Acompanhe suas metas individuais e bônus das últimas 4 semanas"
+          }
         </p>
       </div>
 
@@ -184,7 +193,9 @@ export default function MetasPessoais() {
                 <TrendingUp className="h-6 w-6 text-blue-500" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Vendido</p>
+                <p className="text-sm text-muted-foreground">
+                  {isCashierData ? "Vendas nos Meios" : "Total Vendido"}
+                </p>
                 <p className="text-2xl font-bold text-foreground">
                   R$ {summary.totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
@@ -269,20 +280,67 @@ export default function MetasPessoais() {
                         <Progress value={Math.min(goal.percentage, 100)} className="h-2" />
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <p className="text-xs text-muted-foreground">Realizado</p>
-                          <p className="text-sm font-semibold text-foreground">
-                            R$ {goal.currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </p>
+                      {goal.isCashierGoal ? (
+                        <>
+                          {goal.paymentMethods && goal.paymentMethods.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground">Meios de Pagamento</p>
+                              <div className="flex flex-wrap gap-1">
+                                {goal.paymentMethods.map((method: string) => (
+                                  <Badge key={method} variant="outline" className="text-xs">
+                                    {method}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground">% Alcançado</p>
+                              <p className="text-sm font-semibold text-foreground">
+                                {goal.currentValue.toFixed(1)}%
+                              </p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground">Meta %</p>
+                              <p className="text-sm font-semibold text-primary">
+                                {goal.targetValue.toFixed(1)}%
+                              </p>
+                            </div>
+                          </div>
+                          {goal.targetMethodSales !== undefined && (
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground">Vendas (Meios)</p>
+                                <p className="text-sm font-semibold text-foreground">
+                                  R$ {goal.targetMethodSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground">Total Loja</p>
+                                <p className="text-sm font-semibold text-muted-foreground">
+                                  R$ {(goal.totalStoreSales || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Realizado</p>
+                            <p className="text-sm font-semibold text-foreground">
+                              R$ {goal.currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Meta</p>
+                            <p className="text-sm font-semibold text-primary">
+                              R$ {goal.targetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                          </div>
                         </div>
-                        <div className="space-y-1">
-                          <p className="text-xs text-muted-foreground">Meta</p>
-                          <p className="text-sm font-semibold text-primary">
-                            R$ {goal.targetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </p>
-                        </div>
-                      </div>
+                      )}
 
                       {goal.isFinished && (
                         <div className="pt-2 border-t border-border">
@@ -353,20 +411,67 @@ export default function MetasPessoais() {
                         <Progress value={Math.min(goal.percentage, 100)} className="h-2" />
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <p className="text-xs text-muted-foreground">Realizado</p>
-                          <p className="text-sm font-semibold text-foreground">
-                            R$ {goal.currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </p>
+                      {goal.isCashierGoal ? (
+                        <>
+                          {goal.paymentMethods && goal.paymentMethods.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground">Meios de Pagamento</p>
+                              <div className="flex flex-wrap gap-1">
+                                {goal.paymentMethods.map((method: string) => (
+                                  <Badge key={method} variant="outline" className="text-xs">
+                                    {method}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground">% Alcançado</p>
+                              <p className="text-sm font-semibold text-foreground">
+                                {goal.currentValue.toFixed(1)}%
+                              </p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground">Meta %</p>
+                              <p className="text-sm font-semibold text-primary">
+                                {goal.targetValue.toFixed(1)}%
+                              </p>
+                            </div>
+                          </div>
+                          {goal.targetMethodSales !== undefined && (
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground">Vendas (Meios)</p>
+                                <p className="text-sm font-semibold text-foreground">
+                                  R$ {goal.targetMethodSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground">Total Loja</p>
+                                <p className="text-sm font-semibold text-muted-foreground">
+                                  R$ {(goal.totalStoreSales || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Realizado</p>
+                            <p className="text-sm font-semibold text-foreground">
+                              R$ {goal.currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Meta</p>
+                            <p className="text-sm font-semibold text-primary">
+                              R$ {goal.targetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                          </div>
                         </div>
-                        <div className="space-y-1">
-                          <p className="text-xs text-muted-foreground">Meta</p>
-                          <p className="text-sm font-semibold text-primary">
-                            R$ {goal.targetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </p>
-                        </div>
-                      </div>
+                      )}
 
                       {goal.isFinished && (
                         <div className="pt-2 border-t border-border">

@@ -1233,7 +1233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Personal goals endpoint for vendedores and gerentes (last 4 weeks with bonus)
+  // Personal goals endpoint for vendedores, gerentes, and caixas (last 4 weeks with bonus)
   app.get("/api/goals/personal", async (req, res) => {
     try {
       const userId = req.session.userId;
@@ -1246,8 +1246,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Usuário não encontrado" });
       }
 
-      // Only vendedores and gerentes can access personal goals
-      if (user.role !== 'vendedor' && user.role !== 'gerente') {
+      // Only vendedores, gerentes, and caixas can access personal goals
+      if (user.role !== 'vendedor' && user.role !== 'gerente' && user.role !== 'caixa') {
         return res.status(403).json({ error: "Sem permissão para acessar metas pessoais" });
       }
 
@@ -1258,7 +1258,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fourWeeksAgoStr = fourWeeksAgo.toISOString().split('T')[0];
       const todayStr = now.toISOString().split('T')[0];
 
-      // Get all individual goals for this user from the last 4 weeks
+      // For caixa users, fetch cashier goals instead of sales goals
+      if (user.role === 'caixa') {
+        const allCashierGoals = await storage.getCashierGoals({
+          cashierId: user.id,
+        });
+
+        // Filter goals that fall within the last 4 weeks
+        const recentGoals = allCashierGoals.filter(goal => {
+          return goal.weekEnd >= fourWeeksAgoStr && goal.weekStart <= todayStr;
+        });
+
+        // Calculate progress for each cashier goal
+        const goalsWithProgress = await Promise.all(recentGoals.map(async (goal) => {
+          // Get total store sales for the period
+          const storeSales = await storage.getSales({
+            storeId: goal.storeId,
+            startDate: goal.weekStart,
+            endDate: goal.weekEnd,
+          });
+
+          const totalStoreSales = storeSales.reduce((sum, sale) => {
+            const value = parseFloat(sale.totalValue);
+            return sum + (isNaN(value) ? 0 : value);
+          }, 0);
+
+          // Get receipts by payment methods specified in the goal
+          const paymentMethods = goal.paymentMethods || [];
+          const receiptTotals = await storage.getReceiptsByPaymentMethod(
+            goal.storeId,
+            goal.weekStart,
+            goal.weekEnd,
+            paymentMethods
+          );
+
+          // Sum all target method sales from receipts
+          let targetMethodSales = 0;
+          for (const receipt of receiptTotals) {
+            targetMethodSales += receipt.totalGross;
+          }
+
+          // Calculate percentage achieved
+          const percentageAchieved = totalStoreSales > 0 
+            ? (targetMethodSales / totalStoreSales) * 100 
+            : 0;
+
+          const targetPercentage = parseFloat(goal.targetPercentage);
+          const achieved = percentageAchieved >= targetPercentage;
+          const isFinished = goal.weekEnd < todayStr;
+
+          // Calculate bonus
+          const bonusPercentageAchieved = parseFloat(goal.bonusPercentageAchieved);
+          const bonusPercentageNotAchieved = parseFloat(goal.bonusPercentageNotAchieved);
+          const appliedBonusPercentage = achieved ? bonusPercentageAchieved : bonusPercentageNotAchieved;
+          const bonusValue = (appliedBonusPercentage / 100) * targetMethodSales;
+
+          return {
+            id: goal.id,
+            storeId: goal.storeId,
+            period: goal.periodType,
+            weekStart: goal.weekStart,
+            weekEnd: goal.weekEnd,
+            targetValue: targetPercentage, // For caixa, target is a percentage
+            currentValue: percentageAchieved, // Current achieved percentage
+            percentage: (percentageAchieved / targetPercentage) * 100, // Progress towards goal
+            achieved,
+            isFinished,
+            bonusPercentageAchieved,
+            bonusPercentageNotAchieved,
+            appliedBonusPercentage,
+            bonusValue,
+            paymentMethods,
+            totalStoreSales,
+            targetMethodSales,
+            isCashierGoal: true,
+          };
+        }));
+
+        // Sort by weekStart descending
+        goalsWithProgress.sort((a, b) => {
+          return new Date(b.weekStart).getTime() - new Date(a.weekStart).getTime();
+        });
+
+        // For cashier, calculate appropriate summary values
+        const finishedGoals = goalsWithProgress.filter(g => g.isFinished);
+        const totalBonus = finishedGoals.reduce((sum, g) => sum + g.bonusValue, 0);
+        const totalTargetMethodSales = goalsWithProgress.reduce((sum, g) => sum + g.targetMethodSales, 0);
+
+        return res.json({
+          user: {
+            id: user.id,
+            fullName: user.fullName,
+            role: user.role,
+            storeId: user.storeId,
+            bonusPercentageAchieved: null,
+            bonusPercentageNotAchieved: null,
+          },
+          goals: goalsWithProgress,
+          summary: {
+            totalGoals: goalsWithProgress.length,
+            achievedGoals: finishedGoals.filter(g => g.achieved).length,
+            totalBonus: totalBonus,
+            totalSales: totalTargetMethodSales, // For caixa, this is total sales in target payment methods
+          },
+          isCashierData: true,
+        });
+      }
+
+      // For vendedores and gerentes, fetch sales goals
       const allGoals = await storage.getSalesGoals({
         sellerId: user.id,
         type: 'individual',

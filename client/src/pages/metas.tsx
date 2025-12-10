@@ -145,6 +145,8 @@ export default function Metas() {
     const monthly = filtered.filter(g => g.period === "monthly");
     
     const current = filtered.filter(goal => {
+      // Only show weekly goals in "Em Andamento"
+      if (goal.period !== "weekly") return false;
       const start = parseISO(goal.weekStart);
       const end = parseISO(goal.weekEnd);
       return isWithinInterval(today, { start, end });
