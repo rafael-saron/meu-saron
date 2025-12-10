@@ -1233,6 +1233,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cashier dashboard endpoint - shows weekly goal progress and payment method sales
+  app.get("/api/cashier/dashboard", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== 'caixa') {
+        return res.status(403).json({ error: "Acesso restrito a caixas" });
+      }
+
+      // Get current week dates (Monday to Sunday)
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + diffToMonday);
+      monday.setHours(0, 0, 0, 0);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      sunday.setHours(23, 59, 59, 999);
+
+      const weekStart = monday.toISOString().split('T')[0];
+      const weekEnd = sunday.toISOString().split('T')[0];
+
+      // Get cashier's active weekly goal for current week
+      const cashierGoals = await storage.getCashierGoals({ 
+        cashierId: user.id,
+        isActive: true 
+      });
+
+      const currentGoal = cashierGoals.find(g => 
+        g.periodType === 'weekly' && 
+        g.weekStart === weekStart && 
+        g.weekEnd === weekEnd
+      );
+
+      if (!currentGoal) {
+        return res.json({
+          hasGoal: false,
+          message: "Nenhuma meta semanal encontrada para esta semana",
+          weekStart,
+          weekEnd,
+        });
+      }
+
+      // Get store sales for the week
+      const storeSales = await storage.getSales({
+        storeId: currentGoal.storeId,
+        startDate: weekStart,
+        endDate: weekEnd,
+      });
+
+      const totalStoreSales = storeSales.reduce((sum, s) => sum + parseFloat(s.totalValue), 0);
+      const paymentMethods = currentGoal.paymentMethods || [];
+
+      // Get sales by target payment methods
+      const receiptTotals = await storage.getReceiptsByPaymentMethod(
+        currentGoal.storeId,
+        weekStart,
+        weekEnd,
+        paymentMethods
+      );
+
+      let targetMethodSales = 0;
+      for (const receipt of receiptTotals) {
+        targetMethodSales += receipt.totalGross;
+      }
+
+      const percentageAchieved = totalStoreSales > 0 ? (targetMethodSales / totalStoreSales) * 100 : 0;
+      const targetPercentage = parseFloat(currentGoal.targetPercentage);
+      const isGoalMet = percentageAchieved >= targetPercentage;
+
+      // Calculate elapsed time for on-track calculation
+      const startDate = new Date(weekStart + 'T00:00:00');
+      const endDate = new Date(weekEnd + 'T23:59:59');
+      const totalDays = 7;
+      let elapsedDays = 0;
+
+      if (now >= startDate && now <= endDate) {
+        elapsedDays = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      } else if (now > endDate) {
+        elapsedDays = 7;
+      }
+
+      const expectedPercentage = (elapsedDays / totalDays) * targetPercentage;
+      const isOnTrack = percentageAchieved >= expectedPercentage;
+
+      res.json({
+        hasGoal: true,
+        goal: {
+          id: currentGoal.id,
+          storeId: currentGoal.storeId,
+          weekStart,
+          weekEnd,
+          paymentMethods,
+          targetPercentage,
+          currentPercentage: Math.round(percentageAchieved * 100) / 100,
+          isGoalMet,
+          isOnTrack,
+          elapsedDays,
+          totalDays,
+          expectedPercentage: Math.round(expectedPercentage * 100) / 100,
+          totalStoreSales: Math.round(totalStoreSales * 100) / 100,
+          targetMethodSales: Math.round(targetMethodSales * 100) / 100,
+          bonusPercentageAchieved: parseFloat(currentGoal.bonusPercentageAchieved),
+          bonusPercentageNotAchieved: parseFloat(currentGoal.bonusPercentageNotAchieved),
+        },
+        salesByMethod: receiptTotals.map(r => ({
+          method: r.paymentMethod,
+          total: Math.round(r.totalGross * 100) / 100,
+        })),
+      });
+    } catch (error: any) {
+      console.error('Error fetching cashier dashboard:', error);
+      res.status(500).json({ 
+        error: "Erro ao buscar dados do dashboard",
+        message: error.message 
+      });
+    }
+  });
+
   // Personal goals endpoint for vendedores, gerentes, and caixas (last 4 weeks with bonus)
   app.get("/api/goals/personal", async (req, res) => {
     try {

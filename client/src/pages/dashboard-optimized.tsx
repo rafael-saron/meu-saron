@@ -318,7 +318,38 @@ export default function Dashboard() {
   const salesSummaryUrl = `/api/sales/summary?storeId=${encodeURIComponent(selectedStore || '')}`;
   const { data: salesSummary, isLoading: loadingSalesSummary } = useQuery<SalesSummary>({
     queryKey: [salesSummaryUrl],
-    enabled: !!selectedStore && activeTab === "resumo",
+    enabled: !!selectedStore && activeTab === "resumo" && user?.role !== 'caixa',
+    refetchInterval: 60000,
+  });
+
+  // Cashier dashboard data
+  interface CashierDashboard {
+    hasGoal: boolean;
+    message?: string;
+    weekStart: string;
+    weekEnd: string;
+    goal?: {
+      id: string;
+      storeId: string;
+      paymentMethods: string[];
+      targetPercentage: number;
+      currentPercentage: number;
+      isGoalMet: boolean;
+      isOnTrack: boolean;
+      elapsedDays: number;
+      totalDays: number;
+      expectedPercentage: number;
+      totalStoreSales: number;
+      targetMethodSales: number;
+      bonusPercentageAchieved: number;
+      bonusPercentageNotAchieved: number;
+    };
+    salesByMethod?: Array<{ method: string; total: number }>;
+  }
+
+  const { data: cashierDashboard, isLoading: loadingCashierDashboard } = useQuery<CashierDashboard>({
+    queryKey: ['/api/cashier/dashboard'],
+    enabled: user?.role === 'caixa',
     refetchInterval: 60000,
   });
 
@@ -426,6 +457,148 @@ export default function Dashboard() {
         {canChangeStore && <StoreSelector value={selectedStore} onChange={setSelectedStore} />}
       </div>
 
+      {/* Cashier-specific dashboard */}
+      {user?.role === 'caixa' && (
+        <div className="space-y-6">
+          {loadingCashierDashboard ? (
+            <div className="space-y-4">
+              <Skeleton className="h-32" />
+              <Skeleton className="h-64" />
+            </div>
+          ) : !cashierDashboard?.hasGoal ? (
+            <Card data-testid="card-no-goal">
+              <CardContent className="py-12 text-center">
+                <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">Nenhuma Meta Esta Semana</h3>
+                <p className="text-muted-foreground">
+                  {cashierDashboard?.message || "Você ainda não possui metas de caixa para esta semana."}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Goal Progress Card */}
+              <Card data-testid="card-goal-progress">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg font-display flex items-center gap-2">
+                    <Target className="h-5 w-5 text-primary" />
+                    Meta Semanal - {cashierDashboard.goal?.paymentMethods.map(m => m.toUpperCase()).join(', ')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Progresso</span>
+                    <span className="text-sm font-medium">
+                      {cashierDashboard.goal?.currentPercentage.toFixed(1)}% / {cashierDashboard.goal?.targetPercentage}%
+                    </span>
+                  </div>
+                  <Progress 
+                    value={Math.min(cashierDashboard.goal?.currentPercentage || 0, 100)} 
+                    className="h-4"
+                  />
+                  <div className="flex items-center justify-between text-sm">
+                    <Badge 
+                      variant={cashierDashboard.goal?.isOnTrack ? "default" : "destructive"}
+                      className={cashierDashboard.goal?.isOnTrack ? "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20" : ""}
+                      data-testid="badge-on-track"
+                    >
+                      {cashierDashboard.goal?.isOnTrack ? "No Ritmo" : "Abaixo do Esperado"}
+                    </Badge>
+                    <span className="text-muted-foreground">
+                      Dia {cashierDashboard.goal?.elapsedDays} de {cashierDashboard.goal?.totalDays}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Sales Summary Cards */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <StatCard
+                  title="Vendas Totais (Loja)"
+                  value={`R$ ${(cashierDashboard.goal?.totalStoreSales || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                  icon={DollarSign}
+                  description="esta semana"
+                  data-testid="stat-total-store-sales"
+                />
+                <StatCard
+                  title="Vendas nos Meios"
+                  value={`R$ ${(cashierDashboard.goal?.targetMethodSales || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                  icon={TrendingUp}
+                  description={cashierDashboard.goal?.paymentMethods.join(', ')}
+                  data-testid="stat-target-method-sales"
+                />
+                <StatCard
+                  title="Percentual Atual"
+                  value={`${(cashierDashboard.goal?.currentPercentage || 0).toFixed(1)}%`}
+                  icon={Target}
+                  description={`Meta: ${cashierDashboard.goal?.targetPercentage}%`}
+                  data-testid="stat-current-percentage"
+                />
+              </div>
+
+              {/* Payment Method Breakdown */}
+              {cashierDashboard.salesByMethod && cashierDashboard.salesByMethod.length > 0 && (
+                <Card data-testid="card-payment-breakdown">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg font-display flex items-center gap-2">
+                      <DollarSign className="h-5 w-5 text-primary" />
+                      Vendas por Método de Pagamento
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {cashierDashboard.salesByMethod.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-3 rounded-lg border bg-card" data-testid={`row-payment-method-${idx}`}>
+                          <span className="font-medium">{item.method}</span>
+                          <span className="text-lg font-bold text-foreground">
+                            R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Bonus Information */}
+              <Card data-testid="card-bonus-info">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg font-display flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-yellow-500" />
+                    Bonificação
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="p-4 rounded-lg border bg-green-50 dark:bg-green-950/20">
+                      <p className="text-sm text-muted-foreground">Se atingir a meta</p>
+                      <p className="text-xl font-bold text-green-600 dark:text-green-400">
+                        {cashierDashboard.goal?.bonusPercentageAchieved}% das vendas
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        ≈ R$ {((cashierDashboard.goal?.bonusPercentageAchieved || 0) / 100 * (cashierDashboard.goal?.targetMethodSales || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-lg border bg-red-50 dark:bg-red-950/20">
+                      <p className="text-sm text-muted-foreground">Se não atingir</p>
+                      <p className="text-xl font-bold text-red-600 dark:text-red-400">
+                        {cashierDashboard.goal?.bonusPercentageNotAchieved}% das vendas
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        ≈ R$ {((cashierDashboard.goal?.bonusPercentageNotAchieved || 0) / 100 * (cashierDashboard.goal?.targetMethodSales || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Non-cashier dashboard */}
+      {user?.role !== 'caixa' && (
+      <>
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -882,6 +1055,8 @@ export default function Dashboard() {
           </div>
         </TabsContent>
       </Tabs>
+      </>
+      )}
     </div>
   );
 }
