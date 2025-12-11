@@ -47,15 +47,16 @@ export function initializeCronJobs() {
   }
   cronInitialized = true;
   
-  // Sincronização a cada hora durante horário comercial (8h às 19h)
+  // Sincronização a cada hora durante horário comercial estendido (8h às 22h)
   // Roda nos minutos 5, 35 para evitar picos de API
-  cron.schedule('5,35 8-19 * * 1-6', async () => {
+  // Estendido até 22h para capturar vendas de fechamento das lojas
+  cron.schedule('5,35 8-22 * * 1-6', async () => {
     await syncTodaySales('Sync horária');
   }, {
     timezone: "America/Sao_Paulo"
   });
   
-  console.log('[CRON] Sincronização horária configurada: 08:05-19:35 (Seg-Sáb)');
+  console.log('[CRON] Sincronização horária configurada: 08:05-22:35 (Seg-Sáb)');
   
   // Sincronização mensal completa (histórico)
   cron.schedule('5 0 1 * *', async () => {
