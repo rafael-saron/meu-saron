@@ -9,7 +9,7 @@ packages = ["imagemagick"]
 [deployment]
 deploymentTarget = "autoscale"
 build = ["npm", "run", "build"]
-run = ["npm", "run", "start"]
+run = ["sh", "-c", "npm run db:push"]
 
 [[ports]]
 localPort = 5000
