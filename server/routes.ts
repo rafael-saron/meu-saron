@@ -3068,9 +3068,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         for (const date of dates) {
           try {
             // Get local counts
-            const localSales = await storage.getSalesByDateRange(store, date, date);
+            const localSales = await storage.getSales({ storeId: store, startDate: date, endDate: date });
             const localCount = localSales.length;
-            const localTotal = localSales.reduce((sum, s) => sum + (s.totalValue || 0), 0);
+            const localTotal = localSales.reduce((sum: number, s) => sum + (Number(s.totalValue) || 0), 0);
 
             // Get Dapic counts (single page just to get totals)
             const dapicResponse = await dapicService.getVendasPDV(store, {

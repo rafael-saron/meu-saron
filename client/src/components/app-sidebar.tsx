@@ -1,4 +1,4 @@
-import { Home, Users, ShoppingBag, Package, DollarSign, Calendar, Bell, MessageCircle, Send, LayoutDashboard, UserCog, LogOut, Target, Wallet, Banknote, TrendingUp, BarChart3, Award } from "lucide-react";
+import { Home, Users, ShoppingBag, Package, DollarSign, Calendar, Bell, MessageCircle, Send, LayoutDashboard, UserCog, LogOut, Target, Wallet, Banknote, TrendingUp, BarChart3, Award, RefreshCw } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -44,6 +44,7 @@ const financialItems = [
 
 const adminItems = [
   { title: "Usuários", url: "/usuarios", icon: UserCog },
+  { title: "Sincronização", url: "/admin/sincronizacao", icon: RefreshCw },
 ];
 
 export function AppSidebar() {

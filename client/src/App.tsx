@@ -27,6 +27,7 @@ import Usuarios from "@/pages/usuarios";
 import Perfil from "@/pages/perfil";
 import ReceitaDiaria from "@/pages/receita-diaria";
 import MetasPessoais from "@/pages/metas-pessoais";
+import AdminSync from "@/pages/admin-sync";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRouter() {
@@ -49,6 +50,7 @@ function AuthenticatedRouter() {
       <Route path="/perfil" component={Perfil} />
       <Route path="/financeiro/receita-diaria" component={ReceitaDiaria} />
       <Route path="/metas-pessoais" component={MetasPessoais} />
+      <Route path="/admin/sincronizacao" component={AdminSync} />
       <Route component={NotFound} />
     </Switch>
   );
