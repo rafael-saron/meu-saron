@@ -4,10 +4,6 @@ const config: CapacitorConfig = {
   appId: 'com.saron.meusaron',
   appName: 'Meu Saron',
   webDir: 'dist/public',
-  server: {
-    androidScheme: 'https',
-    iosScheme: 'https',
-  },
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,

@@ -99,3 +99,47 @@ The system is built with a modern stack:
 - **Axios**: For HTTP client requests.
 - **bcrypt**: For password hashing.
 - **Zod**: For schema validation.
+
+## Mobile App Development (Capacitor)
+
+The project is configured with Capacitor to generate native Android and iOS apps from the web application.
+
+### Configuration Files
+- **capacitor.config.ts**: Main Capacitor configuration
+  - App ID: `com.saron.meusaron`
+  - App Name: `Meu Saron`
+  - Web Dir: `dist/public` (Vite build output)
+
+### Project Structure
+- **/android**: Android native project (Android Studio)
+- **/ios**: iOS native project (Xcode)
+
+### Build Workflow
+```bash
+# 1. Build the web app
+npm run build
+
+# 2. Sync web assets to native projects
+npx cap sync
+
+# 3. Open in native IDE
+npx cap open android   # Opens Android Studio
+npx cap open ios       # Opens Xcode (Mac only)
+```
+
+### Development Requirements
+- **Android**: Android Studio with SDK installed
+- **iOS**: Mac with Xcode and CocoaPods installed
+
+### Key Commands
+| Command | Description |
+|---------|-------------|
+| `npx cap sync` | Syncs web assets and plugins to native projects |
+| `npx cap copy` | Copies only web assets (faster, no plugin updates) |
+| `npx cap update` | Updates native project dependencies |
+| `npx cap open android` | Opens project in Android Studio |
+| `npx cap open ios` | Opens project in Xcode |
+
+### Server Configuration for Mobile
+- **Production**: The app runs offline with bundled web assets copied from `dist/public`
+- **Development**: To test against a live server, add a `server.url` to `capacitor.config.ts` pointing to your dev server (e.g., `http://192.168.x.x:5000`)
