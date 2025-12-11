@@ -3024,6 +3024,179 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Endpoint to check sync discrepancies for last N days (admin only)
+  app.get("/api/sales/sync/check", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== 'administrador') {
+        return res.status(403).json({ error: "Acesso restrito a administradores" });
+      }
+
+      const days = parseInt(req.query.days as string) || 10;
+      const stores = ['saron1', 'saron2', 'saron3'];
+      
+      // Generate date range for last N days
+      const dates: string[] = [];
+      for (let i = 0; i < days; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        // Adjust to Brazil timezone (UTC-3)
+        const brazilOffset = -3 * 60;
+        const utcOffset = date.getTimezoneOffset();
+        const brazilTime = new Date(date.getTime() + (utcOffset + brazilOffset) * 60 * 1000);
+        dates.push(brazilTime.toISOString().split('T')[0]);
+      }
+
+      const discrepancies: Array<{
+        date: string;
+        store: string;
+        localCount: number;
+        localTotal: number;
+        dapicCount: number;
+        dapicTotal: number;
+        countDiff: number;
+        totalDiff: number;
+      }> = [];
+
+      // Check each store and date
+      for (const store of stores) {
+        for (const date of dates) {
+          try {
+            // Get local counts
+            const localSales = await storage.getSalesByDateRange(store, date, date);
+            const localCount = localSales.length;
+            const localTotal = localSales.reduce((sum, s) => sum + (s.totalValue || 0), 0);
+
+            // Get Dapic counts (single page just to get totals)
+            const dapicResponse = await dapicService.getVendasPDV(store, {
+              DataInicial: date,
+              DataFinal: date,
+              Pagina: 1,
+              RegistrosPorPagina: 1,
+            }) as any;
+
+            const dapicCount = dapicResponse?.TotalRegistros || 0;
+            // Estimate total from Dapic (would need full fetch for exact total)
+            
+            const countDiff = dapicCount - localCount;
+
+            if (countDiff !== 0) {
+              discrepancies.push({
+                date,
+                store,
+                localCount,
+                localTotal: Math.round(localTotal * 100) / 100,
+                dapicCount,
+                dapicTotal: 0, // Would require full fetch
+                countDiff,
+                totalDiff: 0,
+              });
+            }
+          } catch (error: any) {
+            console.error(`Error checking ${store} for ${date}:`, error.message);
+          }
+        }
+      }
+
+      // Sort by date (most recent first) then by count difference
+      discrepancies.sort((a, b) => {
+        const dateDiff = b.date.localeCompare(a.date);
+        if (dateDiff !== 0) return dateDiff;
+        return Math.abs(b.countDiff) - Math.abs(a.countDiff);
+      });
+
+      res.json({
+        daysChecked: days,
+        totalDiscrepancies: discrepancies.length,
+        discrepancies,
+        checkedAt: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Error checking sync discrepancies:', error);
+      res.status(500).json({ 
+        error: "Erro ao verificar discrepâncias",
+        message: error.message 
+      });
+    }
+  });
+
+  // Endpoint to resync specific dates with discrepancies (admin only)
+  app.post("/api/sales/sync/resync", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== 'administrador') {
+        return res.status(403).json({ error: "Acesso restrito a administradores" });
+      }
+
+      const { dates, stores } = req.body;
+      
+      if (!dates || !Array.isArray(dates) || dates.length === 0) {
+        return res.status(400).json({ error: "dates é obrigatório (array de datas)" });
+      }
+
+      const targetStores = stores && Array.isArray(stores) && stores.length > 0 
+        ? stores 
+        : ['saron1', 'saron2', 'saron3'];
+
+      const results: Array<{
+        date: string;
+        store: string;
+        success: boolean;
+        salesCount: number;
+        error?: string;
+      }> = [];
+
+      for (const date of dates) {
+        for (const store of targetStores) {
+          try {
+            const result = await salesSyncService.syncStore(store, date, date);
+            results.push({
+              date,
+              store,
+              success: result.success,
+              salesCount: result.salesCount,
+              error: result.error,
+            });
+          } catch (error: any) {
+            results.push({
+              date,
+              store,
+              success: false,
+              salesCount: 0,
+              error: error.message,
+            });
+          }
+        }
+      }
+
+      const totalSynced = results.reduce((sum, r) => sum + r.salesCount, 0);
+      const allSuccess = results.every(r => r.success);
+
+      res.json({
+        success: allSuccess,
+        totalSynced,
+        results,
+        message: `Resincronização concluída: ${totalSynced} vendas processadas`,
+      });
+    } catch (error: any) {
+      console.error('Error resyncing:', error);
+      res.status(500).json({ 
+        error: "Erro ao resincronizar",
+        message: error.message 
+      });
+    }
+  });
+
   // Debug endpoint to see Dapic sales structure
   app.get("/api/debug/dapic-sale-structure", async (req, res) => {
     try {
