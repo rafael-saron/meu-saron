@@ -2937,6 +2937,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Internal endpoint to sync historical data with secret token
+  app.post("/api/sales/sync/historical", async (req, res) => {
+    try {
+      const { year, secret } = req.body;
+      
+      // Require secret token for security
+      const SYNC_SECRET = process.env.SYNC_SECRET || 'saron-sync-2023-secure';
+      if (secret !== SYNC_SECRET) {
+        return res.status(401).json({ error: "Token inválido" });
+      }
+      
+      if (!year || year < 2020 || year > 2025) {
+        return res.status(400).json({ error: "Ano inválido (2020-2025)" });
+      }
+      
+      console.log(`[API] Iniciando sincronização ADITIVA de ${year}...`);
+      
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
+      
+      res.json({
+        message: `Sincronização ADITIVA de ${year} iniciada. Não perde dados existentes.`,
+        startDate,
+        endDate,
+      });
+
+      // Run additive sync asynchronously - safe to interrupt
+      (async () => {
+        const stores = ['saron1', 'saron2', 'saron3'];
+        for (const store of stores) {
+          console.log(`[${year}-FIX-ADDITIVE] Sincronizando ${store}...`);
+          try {
+            const result = await salesSyncService.syncStoreAdditive(store, startDate, endDate);
+            console.log(`[${year}-FIX-ADDITIVE] ${store}: ${result.success ? 'OK' : 'ERRO'} - ${result.salesCount} novas vendas`);
+          } catch (error: any) {
+            console.error(`[${year}-FIX-ADDITIVE] ${store}: ERRO - ${error.message}`);
+          }
+        }
+        console.log(`[${year}-FIX-ADDITIVE] Sincronização de ${year} concluída!`);
+      })();
+    } catch (error: any) {
+      console.error('Error syncing historical data:', error);
+      res.status(500).json({ 
+        error: "Erro ao iniciar sincronização histórica",
+        message: error.message 
+      });
+    }
+  });
+
   // Endpoint to sync a specific month for a specific store (faster, avoids timeout)
   app.post("/api/sales/sync/month", async (req, res) => {
     try {
