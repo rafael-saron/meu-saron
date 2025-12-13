@@ -458,11 +458,37 @@ class DapicService {
     DataFinal?: string;
     Pagina?: number;
     RegistrosPorPagina?: number;
+    Tipo?: string;
+    Status?: string;
   }) {
+    const requestParams = {
+      ...params,
+      RegistrosPorPagina: params?.RegistrosPorPagina || 100,
+    };
+    
     if (storeId === 'todas') {
-      return this.makeRequestAllStores('/v1/contaspagar', params);
+      return this.makeRequestAllStores('/v1/contaspagar', requestParams);
     }
-    return this.makeRequest(storeId, '/v1/contaspagar', params);
+    return this.makeRequest(storeId, '/v1/contaspagar', requestParams);
+  }
+
+  async getContasReceber(storeId: string, params?: {
+    DataInicial?: string;
+    DataFinal?: string;
+    Pagina?: number;
+    RegistrosPorPagina?: number;
+    Tipo?: string;
+    Status?: string;
+  }) {
+    const requestParams = {
+      ...params,
+      RegistrosPorPagina: params?.RegistrosPorPagina || 100,
+    };
+    
+    if (storeId === 'todas') {
+      return this.makeRequestAllStores('/v1/contasreceber', requestParams);
+    }
+    return this.makeRequest(storeId, '/v1/contasreceber', requestParams);
   }
 
   getAvailableStores(): string[] {
