@@ -2821,6 +2821,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/dapic/:storeId/contas-receber", async (req, res) => {
+    try {
+      const { storeId } = req.params;
+      const { DataInicial, DataFinal, Pagina, RegistrosPorPagina } = req.query;
+      
+      const today = new Date();
+      const formatDate = (date: Date) => date.toISOString().split('T')[0];
+      
+      const result = await dapicService.getContasReceber(storeId, {
+        DataInicial: (DataInicial as string) || "2020-01-01",
+        DataFinal: (DataFinal as string) || formatDate(today),
+        Pagina: Pagina ? parseInt(Pagina as string) : undefined,
+        RegistrosPorPagina: RegistrosPorPagina ? parseInt(RegistrosPorPagina as string) : undefined,
+      }) as any;
+      
+      if (storeId === 'todas') {
+        res.json({
+          stores: result.data,
+          errors: result.errors,
+        });
+      } else {
+        res.json(result);
+      }
+    } catch (error: any) {
+      console.error('Error fetching receivables from Dapic:', error);
+      res.status(500).json({ 
+        error: "Failed to fetch receivables from Dapic",
+        message: error.message 
+      });
+    }
+  });
+
   app.post("/api/sales/sync", async (req, res) => {
     try {
       const userId = req.session.userId;

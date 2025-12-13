@@ -118,8 +118,34 @@ export function useDapicContasPagar(storeId: string, params?: {
       if (params?.RegistrosPorPagina) queryParams.append("RegistrosPorPagina", params.RegistrosPorPagina.toString());
       
       const url = `/api/dapic/${storeId}/contas-pagar${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      const response = await fetch(url);
+      const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error("Failed to fetch bills from Dapic");
+      return response.json();
+    },
+    enabled: !!storeId && (params?.enabled !== false),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useDapicContasReceber(storeId: string, params?: {
+  DataInicial?: string;
+  DataFinal?: string;
+  Pagina?: number;
+  RegistrosPorPagina?: number;
+  enabled?: boolean;
+}) {
+  return useQuery({
+    queryKey: ["/api/dapic/contas-receber", storeId, params],
+    queryFn: async () => {
+      const queryParams = new URLSearchParams();
+      if (params?.DataInicial) queryParams.append("DataInicial", params.DataInicial);
+      if (params?.DataFinal) queryParams.append("DataFinal", params.DataFinal);
+      if (params?.Pagina) queryParams.append("Pagina", params.Pagina.toString());
+      if (params?.RegistrosPorPagina) queryParams.append("RegistrosPorPagina", params.RegistrosPorPagina.toString());
+      
+      const url = `/api/dapic/${storeId}/contas-receber${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error("Failed to fetch receivables from Dapic");
       return response.json();
     },
     enabled: !!storeId && (params?.enabled !== false),

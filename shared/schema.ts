@@ -133,6 +133,48 @@ export const cashierGoals = pgTable("cashier_goals", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Contas a Pagar - armazenamento local de dados do Dapic
+export const accountsPayable = pgTable("accounts_payable", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dapicId: integer("dapic_id").notNull(),
+  storeId: text("store_id").notNull(),
+  document: text("document"),
+  supplier: text("supplier"),
+  description: text("description"),
+  issueDate: date("issue_date"),
+  dueDate: date("due_date"),
+  competenceDate: text("competence_date"),
+  value: decimal("value", { precision: 12, scale: 2 }).notNull(),
+  openValue: decimal("open_value", { precision: 12, scale: 2 }),
+  paymentMethod: text("payment_method"),
+  status: text("status").notNull(),
+  accountPlan: text("account_plan"),
+  paymentDate: date("payment_date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Contas a Receber - armazenamento local de dados do Dapic
+export const accountsReceivable = pgTable("accounts_receivable", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dapicId: integer("dapic_id").notNull(),
+  storeId: text("store_id").notNull(),
+  document: text("document"),
+  client: text("client"),
+  description: text("description"),
+  issueDate: date("issue_date"),
+  dueDate: date("due_date"),
+  competenceDate: text("competence_date"),
+  value: decimal("value", { precision: 12, scale: 2 }).notNull(),
+  openValue: decimal("open_value", { precision: 12, scale: 2 }),
+  paymentMethod: text("payment_method"),
+  status: text("status").notNull(),
+  accountPlan: text("account_plan"),
+  receivedDate: date("received_date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   sentMessages: many(chatMessages, { relationName: "sentMessages" }),
   receivedMessages: many(chatMessages, { relationName: "receivedMessages" }),
@@ -325,6 +367,26 @@ export const insertCashierGoalSchema = createInsertSchema(cashierGoals).omit({
   bonusPercentageNotAchieved: z.string().or(z.number()).transform((val) => String(val)),
 });
 
+export const insertAccountPayableSchema = createInsertSchema(accountsPayable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  storeId: z.enum(["saron1", "saron2", "saron3"]),
+  value: z.string().or(z.number()).transform((val) => String(val)),
+  openValue: z.string().or(z.number()).transform((val) => String(val)).nullable().optional(),
+});
+
+export const insertAccountReceivableSchema = createInsertSchema(accountsReceivable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  storeId: z.enum(["saron1", "saron2", "saron3"]),
+  value: z.string().or(z.number()).transform((val) => String(val)),
+  openValue: z.string().or(z.number()).transform((val) => String(val)).nullable().optional(),
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UserStore = typeof userStores.$inferSelect;
@@ -347,6 +409,10 @@ export type SalesGoal = typeof salesGoals.$inferSelect;
 export type InsertSalesGoal = z.infer<typeof insertSalesGoalSchema>;
 export type CashierGoal = typeof cashierGoals.$inferSelect;
 export type InsertCashierGoal = z.infer<typeof insertCashierGoalSchema>;
+export type AccountPayable = typeof accountsPayable.$inferSelect;
+export type InsertAccountPayable = z.infer<typeof insertAccountPayableSchema>;
+export type AccountReceivable = typeof accountsReceivable.$inferSelect;
+export type InsertAccountReceivable = z.infer<typeof insertAccountReceivableSchema>;
 
 export type UserRole = "administrador" | "gerente" | "vendedor" | "financeiro" | "caixa";
 export type ScheduleEventType = "normal" | "extra";

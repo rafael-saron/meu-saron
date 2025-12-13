@@ -25,6 +25,7 @@ const allMenuItems = [
   { title: "Vendas", url: "/vendas", icon: ShoppingBag, roles: ["administrador", "gerente"] },
   { title: "Produtos", url: "/produtos", icon: Package, roles: ["administrador", "gerente"] },
   { title: "Contas a Pagar", url: "/contas-pagar", icon: DollarSign, roles: ["administrador", "financeiro"] },
+  { title: "Contas a Receber", url: "/contas-receber", icon: TrendingUp, roles: ["administrador", "financeiro"] },
   { title: "Metas", url: "/metas", icon: Target, roles: ["administrador", "gerente"] },
   { title: "Metas de Caixa", url: "/metas-caixa", icon: Wallet, roles: ["administrador", "gerente"] },
   { title: "Minhas Metas", url: "/metas-pessoais", icon: Award, roles: ["vendedor", "gerente", "caixa"] },

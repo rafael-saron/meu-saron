@@ -28,7 +28,7 @@ The system is built with a modern stack:
 - **Sales Summary Cards**: "Vendas Hoje/Semana/Mês" cards use `/api/sales/summary` endpoint (local database) for accurate data that matches goal progress values.
 
 **Technical Implementations & Feature Specifications:**
-- **Database Schema**: Includes `users` (with roles), `chatMessages`, `scheduleEvents`, `announcements`, `anonymousMessages`, `salesGoals`, and `userStores` (junction table).
+- **Database Schema**: Includes `users` (with roles), `chatMessages`, `scheduleEvents`, `announcements`, `anonymousMessages`, `salesGoals`, `userStores` (junction table), `accountsPayable`, and `accountsReceivable`.
 - **Authentication**: JWT-based with `express-session`, httpOnly cookies, and role-based access control (RBAC).
 - **Multi-store Support**: Seamless integration with Saron 1, 2, 3 via Dapic API for dynamic store selection and consolidated views.
 - **Real-time Chat**: WhatsApp-style chat with unread counts via WebSockets.
@@ -71,6 +71,21 @@ The system is built with a modern stack:
     - **Data Source**: Uses local `sales` table for consistent data across all views.
     - **Comparison**: Select multiple years for year-over-year analysis with percentage changes.
     - **Auto-refresh**: Updates every 60 seconds.
+- **Contas a Pagar (`/contas-pagar`)**:
+    - **Purpose**: View accounts payable from Dapic ERP.
+    - **Access Control**: Restricted to 'administrador' and 'financeiro' roles only.
+    - **API Endpoint**: `/api/dapic/:storeId/contas-pagar` with date and pagination filters.
+    - **Features**: Store selector, search filtering, status badges (Pendente, Pago, Vencido).
+- **Contas a Receber (`/contas-receber`)**:
+    - **Purpose**: View accounts receivable from Dapic ERP.
+    - **Access Control**: Restricted to 'administrador' and 'financeiro' roles only.
+    - **API Endpoint**: `/api/dapic/:storeId/contas-receber` with date and pagination filters.
+    - **Features**: Store selector, search filtering, status badges (Pendente, Recebido, Vencido).
+- **Historical Sales Sync (`/admin/sincronizacao`)**:
+    - **Purpose**: Sync historical sales data from any year (2020-2024) from Dapic.
+    - **Access Control**: Restricted to 'administrador' role only.
+    - **Features**: Year selector, store selector, async background sync.
+    - **Use Case**: Sync 2023 data for year-over-year comparisons.
 
 **System Design Choices:**
 - Frontend and backend share port 5000 via Vite proxy.
@@ -93,7 +108,7 @@ The system is built with a modern stack:
     - **Base URL**: `https://api.dapic.com.br`
     - **Authentication**: Bearer Token JWT with automatic renewal.
     - **Rate Limit**: 100 requests/minute per endpoint.
-    - **Integrated Endpoints**: `/autenticacao/v1/login`, `/v1/clientes`, `/v1/orcamentos`, `/v1/produtos`, `/v1/vendaspdv`, `/v1/contaspagar`.
+    - **Integrated Endpoints**: `/autenticacao/v1/login`, `/v1/clientes`, `/v1/orcamentos`, `/v1/produtos`, `/v1/vendaspdv`, `/v1/contaspagar`, `/v1/contasreceber`.
     - **Credentials**: `DAPIC_EMPRESA` and `DAPIC_TOKEN_INTEGRACAO` (environment secrets).
 - **PostgreSQL Database**: Utilized through Neon, accessed via Drizzle ORM.
 - **Axios**: For HTTP client requests.

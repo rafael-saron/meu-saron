@@ -3,9 +3,11 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, CheckCircle2, AlertTriangle, Search } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, RefreshCw, CheckCircle2, AlertTriangle, Search, History } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useUser } from "@/lib/user-context";
 
 interface Discrepancy {
   date: string;
@@ -42,7 +44,10 @@ interface ResyncResponse {
 
 export default function AdminSync() {
   const { toast } = useToast();
+  const { user } = useUser();
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
+  const [historicalYear, setHistoricalYear] = useState<string>("2023");
+  const [historicalStore, setHistoricalStore] = useState<string>("todas");
 
   const { data: checkData, isFetching: isChecking, error: checkError, refetch: checkDiscrepancies } = useQuery<CheckResponse>({
     queryKey: ['/api/sales/sync/check'],
@@ -72,6 +77,37 @@ export default function AdminSync() {
       });
     },
   });
+
+  const historicalSyncMutation = useMutation({
+    mutationFn: async ({ year, storeId }: { year: string; storeId: string }) => {
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
+      const response = await apiRequest('POST', '/api/sales/sync', { 
+        storeId: storeId === 'todas' ? undefined : storeId,
+        startDate,
+        endDate,
+      });
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Sincronização histórica concluída",
+        description: `${data.totalSales || 0} vendas sincronizadas`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro na sincronização histórica",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleHistoricalSync = () => {
+    if (!user) return;
+    historicalSyncMutation.mutate({ year: historicalYear, storeId: historicalStore });
+  };
 
   const handleCheck = async () => {
     try {
@@ -365,6 +401,82 @@ export default function AdminSync() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Sincronização Histórica
+          </CardTitle>
+          <CardDescription>
+            Sincronize vendas de anos anteriores do Dapic para o sistema local
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-4 items-end flex-wrap">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Ano</label>
+              <Select value={historicalYear} onValueChange={setHistoricalYear}>
+                <SelectTrigger className="w-[120px]" data-testid="select-historical-year">
+                  <SelectValue placeholder="Ano" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2020">2020</SelectItem>
+                  <SelectItem value="2021">2021</SelectItem>
+                  <SelectItem value="2022">2022</SelectItem>
+                  <SelectItem value="2023">2023</SelectItem>
+                  <SelectItem value="2024">2024</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Loja</label>
+              <Select value={historicalStore} onValueChange={setHistoricalStore}>
+                <SelectTrigger className="w-[150px]" data-testid="select-historical-store">
+                  <SelectValue placeholder="Loja" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as Lojas</SelectItem>
+                  <SelectItem value="saron1">Saron 1</SelectItem>
+                  <SelectItem value="saron2">Saron 2</SelectItem>
+                  <SelectItem value="saron3">Saron 3</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button 
+              onClick={handleHistoricalSync} 
+              disabled={historicalSyncMutation.isPending || !user}
+              data-testid="button-historical-sync"
+            >
+              {historicalSyncMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sincronizando...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Sincronizar {historicalYear}
+                </>
+              )}
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Este processo pode demorar vários minutos dependendo da quantidade de vendas.
+            A sincronização será feita em segundo plano.
+          </p>
+          {historicalSyncMutation.data && (
+            <div className="p-4 rounded-lg border border-green-200 bg-green-50 dark:bg-green-900/20 dark:border-green-800">
+              <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                <CheckCircle2 className="h-5 w-5" />
+                <span className="font-medium">
+                  {historicalSyncMutation.data.message || `${historicalSyncMutation.data.totalSales || 0} vendas processadas`}
+                </span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
