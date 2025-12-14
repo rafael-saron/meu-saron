@@ -2986,6 +2986,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Endpoint to force sync today's sales with secret token (no auth required)
+  app.post("/api/sales/sync/today", async (req, res) => {
+    try {
+      const { secret } = req.body;
+      
+      // Require secret token for security
+      const SYNC_SECRET = process.env.SYNC_SECRET || 'saron-sync-2023-secure';
+      if (secret !== SYNC_SECRET) {
+        return res.status(401).json({ error: "Token inválido" });
+      }
+      
+      // Get today's date in São Paulo timezone
+      const now = new Date();
+      const spOffset = -3 * 60; // UTC-3
+      const localOffset = now.getTimezoneOffset();
+      const spTime = new Date(now.getTime() + (localOffset + spOffset) * 60 * 1000);
+      const today = spTime.toISOString().split('T')[0];
+      
+      console.log(`[SYNC-TODAY] Iniciando sincronização forçada de ${today}...`);
+      
+      const stores = ['saron1', 'saron2', 'saron3'];
+      const results: Array<{
+        store: string;
+        success: boolean;
+        salesCount: number;
+        error?: string;
+      }> = [];
+      
+      for (const store of stores) {
+        try {
+          // Use syncStore (not additive) to replace all sales for today
+          const result = await salesSyncService.syncStore(store, today, today);
+          results.push({
+            store,
+            success: result.success,
+            salesCount: result.salesCount,
+            error: result.error,
+          });
+          console.log(`[SYNC-TODAY] ${store}: ${result.success ? 'OK' : 'ERRO'} - ${result.salesCount} vendas`);
+        } catch (error: any) {
+          results.push({
+            store,
+            success: false,
+            salesCount: 0,
+            error: error.message,
+          });
+          console.error(`[SYNC-TODAY] ${store}: ERRO - ${error.message}`);
+        }
+      }
+      
+      const totalSynced = results.reduce((sum, r) => sum + r.salesCount, 0);
+      const allSuccess = results.every(r => r.success);
+      
+      console.log(`[SYNC-TODAY] Concluído: ${totalSynced} vendas processadas`);
+      
+      res.json({
+        success: allSuccess,
+        date: today,
+        totalSynced,
+        results,
+        message: `Sincronização de ${today} concluída: ${totalSynced} vendas`,
+      });
+    } catch (error: any) {
+      console.error('Error syncing today:', error);
+      res.status(500).json({ 
+        error: "Erro ao sincronizar vendas de hoje",
+        message: error.message 
+      });
+    }
+  });
+
   // Endpoint to sync a specific month for a specific store (faster, avoids timeout)
   app.post("/api/sales/sync/month", async (req, res) => {
     try {
