@@ -9,6 +9,7 @@ import fs from "fs";
 import { storage } from "./storage";
 import { dapicService } from "./dapic";
 import { salesSyncService } from "./salesSync";
+import { salesPatternService } from "./salesPatternService";
 import {
   insertChatMessageSchema,
   insertScheduleEventSchema,
@@ -947,7 +948,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const totalDays = Math.max(1, Math.floor((endDateUtc - startDateUtc) / dayMs) + 1);
         const elapsedDays = Math.floor((nowUtc - startDateUtc) / dayMs) + 1;
-        const expectedPercentage = (elapsedDays / totalDays) * 100;
+        
+        // Use pattern-based expected percentage calculation
+        const patternResult = await salesPatternService.calculateExpectedProgress(
+          new Date(startYear, startMonth - 1, startDay),
+          new Date(endYear, endMonth - 1, endDay),
+          new Date(),
+          goal.storeId
+        );
+        const expectedPercentage = patternResult.expectedPercentage;
         const isOnTrack = percentage >= expectedPercentage;
 
         // Calcular bonificação para metas individuais
@@ -1078,7 +1087,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             expectedPercentage = 100;
           } else {
             elapsedDays = Math.floor((nowUtc - startDateUtc) / dayMs) + 1;
-            expectedPercentage = (elapsedDays / totalDays) * 100;
+            // Use pattern-based expected percentage calculation
+            // For multi-store managers, use undefined to get combined pattern
+            const patternResult = await salesPatternService.calculateExpectedProgress(
+              new Date(startYear, startMonth - 1, startDay),
+              new Date(endYear, endMonth - 1, endDay),
+              new Date(),
+              managerStoreIds.length === 1 ? managerStoreIds[0] : undefined
+            );
+            expectedPercentage = patternResult.expectedPercentage;
           }
           
           const isOnTrack = percentage >= expectedPercentage;
@@ -1186,7 +1203,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           expectedPercentage = 100;
         } else {
           elapsedDays = Math.floor((nowUtc - startDateUtc) / dayMs) + 1;
-          expectedPercentage = (elapsedDays / totalDays) * 100;
+          // Use pattern-based expected percentage calculation
+          const patternResult = await salesPatternService.calculateExpectedProgress(
+            new Date(startYear, startMonth - 1, startDay),
+            new Date(endYear, endMonth - 1, endDay),
+            new Date(),
+            typeof storeId === 'string' ? storeId : undefined
+          );
+          expectedPercentage = patternResult.expectedPercentage;
         }
         
         const isOnTrack = percentage >= expectedPercentage;
