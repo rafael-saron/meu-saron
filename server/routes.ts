@@ -488,6 +488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/schedule", async (req, res) => {
     try {
+      console.log('[Schedule] Creating event with data:', JSON.stringify(req.body, null, 2));
       const validatedData = insertScheduleEventSchema.parse(req.body);
       const newEvent = await storage.createScheduleEvent(validatedData);
       
@@ -501,8 +502,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       res.json(newEvent);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid event data" });
+    } catch (error: any) {
+      console.error('[Schedule] Error creating event:', error);
+      res.status(400).json({ error: "Invalid event data", details: error.message || String(error) });
     }
   });
 

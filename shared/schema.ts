@@ -30,6 +30,7 @@ export const chatMessages = pgTable("chat_messages", {
 export const scheduleEvents = pgTable("schedule_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
+  storeId: text("store_id").notNull(),
   title: text("title").notNull(),
   type: text("type").notNull(),
   startTime: timestamp("start_time").notNull(),
