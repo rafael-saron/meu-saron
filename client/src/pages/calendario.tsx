@@ -73,6 +73,7 @@ export default function Calendario() {
 
   const [formData, setFormData] = useState({
     userId: "",
+    storeId: "",
     title: "",
     type: "normal",
     date: "",
@@ -126,6 +127,7 @@ export default function Calendario() {
   const resetForm = () => {
     setFormData({
       userId: "",
+      storeId: currentUser?.storeId || "",
       title: "",
       type: "normal",
       date: "",
@@ -147,10 +149,12 @@ export default function Calendario() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.userId || !formData.date || !formData.title) {
+    const storeIdToUse = formData.storeId || currentUser?.storeId;
+    
+    if (!formData.userId || !formData.date || !formData.title || !storeIdToUse) {
       toast({
         title: "Campos obrigatórios",
-        description: "Preencha todos os campos obrigatórios.",
+        description: "Preencha todos os campos obrigatórios (incluindo a loja).",
         variant: "destructive",
       });
       return;
@@ -161,6 +165,7 @@ export default function Calendario() {
 
     createMutation.mutate({
       userId: formData.userId,
+      storeId: storeIdToUse,
       title: formData.title,
       type: formData.type,
       startTime: startDateTime.toISOString(),
@@ -386,6 +391,24 @@ export default function Calendario() {
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
+              {currentUser?.role === 'administrador' && (
+                <div className="grid gap-2">
+                  <Label htmlFor="storeId">Loja *</Label>
+                  <Select
+                    value={formData.storeId}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, storeId: value }))}
+                  >
+                    <SelectTrigger data-testid="select-store">
+                      <SelectValue placeholder="Selecione a loja" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="saron1">Saron 1</SelectItem>
+                      <SelectItem value="saron2">Saron 2</SelectItem>
+                      <SelectItem value="saron3">Saron 3</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="grid gap-2">
                 <Label htmlFor="userId">Funcionário *</Label>
                 <Select
