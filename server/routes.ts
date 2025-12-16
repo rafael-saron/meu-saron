@@ -474,9 +474,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/schedule", async (req, res) => {
     try {
-      const { userId, startDate, endDate } = req.query;
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+      
+      const { startDate, endDate, storeId } = req.query;
+      
+      // Admins can view any store, others can only view their own store
+      let effectiveStoreId: string | undefined;
+      if (user.role === 'administrador' && storeId) {
+        effectiveStoreId = storeId as string;
+      } else {
+        effectiveStoreId = user.storeId;
+      }
+      
       const events = await storage.getScheduleEvents(
-        userId as string | undefined,
+        effectiveStoreId,
         startDate ? new Date(startDate as string) : undefined,
         endDate ? new Date(endDate as string) : undefined
       );
@@ -488,8 +507,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/schedule", async (req, res) => {
     try {
+      const sessionUserId = req.session.userId;
+      if (!sessionUserId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const currentUser = await storage.getUser(sessionUserId);
+      if (!currentUser) {
+        return res.status(401).json({ error: "User not found" });
+      }
+      
       console.log('[Schedule] Creating event with data:', JSON.stringify(req.body, null, 2));
-      const validatedData = insertScheduleEventSchema.parse(req.body);
+      
+      // Validate storeId: admins can create for any store, others only for their store
+      const requestedStoreId = req.body.storeId;
+      let effectiveStoreId: string;
+      
+      if (currentUser.role === 'administrador' && requestedStoreId) {
+        effectiveStoreId = requestedStoreId;
+      } else if (currentUser.role === 'gerente' && requestedStoreId === currentUser.storeId) {
+        effectiveStoreId = currentUser.storeId;
+      } else {
+        effectiveStoreId = currentUser.storeId;
+      }
+      
+      const eventData = { ...req.body, storeId: effectiveStoreId };
+      const validatedData = insertScheduleEventSchema.parse(eventData);
       const newEvent = await storage.createScheduleEvent(validatedData);
       
       clients.forEach((ws) => {

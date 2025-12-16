@@ -51,7 +51,7 @@ export interface IStorage {
   markMessagesAsRead(senderId: string, receiverId: string): Promise<void>;
   getUnreadCount(userId: string): Promise<number>;
   
-  getScheduleEvents(userId?: string, startDate?: Date, endDate?: Date): Promise<ScheduleEvent[]>;
+  getScheduleEvents(storeId?: string, startDate?: Date, endDate?: Date): Promise<ScheduleEvent[]>;
   createScheduleEvent(event: InsertScheduleEvent): Promise<ScheduleEvent>;
   deleteScheduleEvent(id: string): Promise<void>;
   
@@ -201,14 +201,28 @@ export class DatabaseStorage implements IStorage {
     return Number(result[0]?.count) || 0;
   }
 
-  async getScheduleEvents(userId?: string, startDate?: Date, endDate?: Date): Promise<ScheduleEvent[]> {
-    let query = db.select().from(scheduleEvents);
-
-    if (userId) {
-      query = query.where(eq(scheduleEvents.userId, userId)) as any;
+  async getScheduleEvents(storeId?: string, startDate?: Date, endDate?: Date): Promise<ScheduleEvent[]> {
+    const conditions = [];
+    
+    if (storeId) {
+      conditions.push(eq(scheduleEvents.storeId, storeId));
+    }
+    
+    if (startDate) {
+      conditions.push(gte(scheduleEvents.startTime, startDate));
+    }
+    
+    if (endDate) {
+      conditions.push(lte(scheduleEvents.endTime, endDate));
     }
 
-    return await query.orderBy(scheduleEvents.startTime);
+    if (conditions.length > 0) {
+      return await db.select().from(scheduleEvents)
+        .where(and(...conditions))
+        .orderBy(scheduleEvents.startTime);
+    }
+
+    return await db.select().from(scheduleEvents).orderBy(scheduleEvents.startTime);
   }
 
   async createScheduleEvent(insertEvent: InsertScheduleEvent): Promise<ScheduleEvent> {
