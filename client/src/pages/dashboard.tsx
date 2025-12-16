@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Users, ShoppingBag, Package, DollarSign, Calendar, TrendingUp, RefreshCw, ChevronDown, Database } from "lucide-react";
+import { Users, ShoppingBag, Package, DollarSign, Calendar, TrendingUp, RefreshCw, ChevronDown, Database, AlertTriangle } from "lucide-react";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
@@ -13,6 +13,8 @@ import { useUser } from "@/lib/user-context";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
+import type { ScheduleEvent, User } from "@shared/schema";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -87,6 +89,51 @@ export default function Dashboard() {
       setSelectedStore(defaultStore);
     }
   }, [user, selectedStore]);
+
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  
+  const { data: scheduleEvents = [] } = useQuery<ScheduleEvent[]>({
+    queryKey: ['/api/schedule', todayStr, todayStr],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set('startDate', todayStr);
+      params.set('endDate', todayStr);
+      const res = await fetch(`/api/schedule?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const { data: allUsers = [] } = useQuery<User[]>({
+    queryKey: ['/api/users'],
+  });
+
+  const userDayOff = useMemo(() => {
+    if (!user || !scheduleEvents.length) return null;
+    return scheduleEvents.find(event => 
+      event.type === "folga" && event.userId === user.id
+    );
+  }, [user, scheduleEvents]);
+
+  const todayScheduleForUser = useMemo(() => {
+    if (!user || !scheduleEvents.length) return [];
+    return scheduleEvents.filter(event => 
+      event.type !== "folga" && 
+      (event.userId === user.id || !event.userId)
+    );
+  }, [user, scheduleEvents]);
+
+  const storeFolgas = useMemo(() => {
+    if (!scheduleEvents.length) return [];
+    return scheduleEvents.filter(event => event.type === "folga");
+  }, [scheduleEvents]);
+
+  const getUserName = (userId: string | null) => {
+    if (!userId) return 'Todos';
+    const foundUser = allUsers.find(u => u.id === userId);
+    return foundUser?.fullName || 'Funcionário';
+  };
 
   const handleRefreshData = async (syncType: 'today' | 'month' | 'full' = 'today') => {
     setIsSyncing(true);
@@ -413,6 +460,76 @@ export default function Dashboard() {
             </div>
           </AlertDescription>
         </Alert>
+      )}
+
+      {userDayOff && (
+        <div className="rounded-lg border-2 border-red-500 bg-red-50 dark:bg-red-950/50 p-6" data-testid="alert-day-off">
+          <div className="flex items-start gap-4">
+            <div className="rounded-full bg-red-500 p-3">
+              <AlertTriangle className="h-6 w-6 text-white" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl font-semibold text-red-700 dark:text-red-400">
+                Hoje é seu dia de folga!
+              </h2>
+              <p className="text-red-600 dark:text-red-400 mt-1">
+                {userDayOff.title}
+                {userDayOff.description && ` - ${userDayOff.description}`}
+              </p>
+              <p className="text-sm text-red-500 dark:text-red-500 mt-2">
+                Aproveite seu descanso! O sistema está disponível apenas para consulta.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {todayScheduleForUser.length > 0 && !userDayOff && (
+        <Card data-testid="card-today-schedule">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" />
+              Seu horário de hoje
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {todayScheduleForUser.map(event => {
+                const startTime = new Date(event.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                const endTime = new Date(event.endTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                return (
+                  <div key={event.id} className="flex items-center gap-3 p-2 rounded-md bg-primary/10">
+                    <div className="font-medium text-primary">{startTime} - {endTime}</div>
+                    <div className="text-foreground">{event.title}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {storeFolgas.length > 0 && !userDayOff && (
+        <Card data-testid="card-store-folgas">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              Colegas de folga hoje
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {storeFolgas.map(event => (
+                <div 
+                  key={event.id} 
+                  className="px-3 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-sm"
+                >
+                  {getUserName(event.userId)}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

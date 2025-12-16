@@ -150,6 +150,7 @@ export default function Calendario() {
     e.preventDefault();
     
     const storeIdToUse = formData.storeId || currentUser?.storeId;
+    const isFolga = formData.type === "folga";
     
     if (!formData.date || !formData.title || !storeIdToUse) {
       toast({
@@ -159,9 +160,26 @@ export default function Calendario() {
       });
       return;
     }
+    
+    if (isFolga && !formData.userId) {
+      toast({
+        title: "Funcionário obrigatório",
+        description: "Para registrar uma folga, selecione qual funcionário estará de folga.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    const startDateTime = new Date(`${formData.date}T${formData.startTime}:00`);
-    const endDateTime = new Date(`${formData.date}T${formData.endTime}:00`);
+    let startDateTime: Date;
+    let endDateTime: Date;
+    
+    if (isFolga) {
+      startDateTime = new Date(`${formData.date}T00:00:00`);
+      endDateTime = new Date(`${formData.date}T23:59:59`);
+    } else {
+      startDateTime = new Date(`${formData.date}T${formData.startTime}:00`);
+      endDateTime = new Date(`${formData.date}T${formData.endTime}:00`);
+    }
 
     createMutation.mutate({
       userId: formData.userId || null,
@@ -285,33 +303,44 @@ export default function Calendario() {
                       <>
                         <div className="text-sm font-medium text-foreground mb-2">{day}</div>
                         <div className="space-y-1">
-                          {dayEvents.slice(0, 3).map((event) => (
-                            <div
-                              key={event.id}
-                              className={cn(
-                                "text-xs px-2 py-1 rounded-md flex items-center justify-between gap-1",
-                                event.type === "normal"
-                                  ? "bg-primary/10 text-primary dark:bg-primary/20"
-                                  : "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
-                              )}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <span className="truncate">
-                                {formatTime(event.startTime)} - {formatTime(event.endTime)}
-                              </span>
-                              {canManageSchedule && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteMutation.mutate(event.id);
-                                  }}
-                                  className="hover:text-destructive flex-shrink-0"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                          {dayEvents.slice(0, 3).map((event) => {
+                            const eventUser = event.userId ? users.find(u => u.id === event.userId) : null;
+                            const displayName = eventUser ? eventUser.fullName.split(' ')[0] : '';
+                            const isFolga = event.type === "folga";
+                            return (
+                              <div
+                                key={event.id}
+                                className={cn(
+                                  "text-xs px-2 py-1 rounded-md flex items-center justify-between gap-1",
+                                  event.type === "normal" && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+                                  event.type === "extra" && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                                  event.type === "folga" && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                )}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <span className="truncate">
+                                  {isFolga ? (
+                                    <>Folga{displayName ? ` - ${displayName}` : ''}</>
+                                  ) : (
+                                    <>
+                                      {formatTime(event.startTime)}{displayName ? ` ${displayName}` : ''}
+                                    </>
+                                  )}
+                                </span>
+                                {canManageSchedule && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deleteMutation.mutate(event.id);
+                                    }}
+                                    className="hover:text-destructive flex-shrink-0"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
                           {dayEvents.length > 3 && (
                             <div className="text-xs text-muted-foreground">
                               +{dayEvents.length - 3} mais
@@ -350,12 +379,23 @@ export default function Calendario() {
                         {userEvents.slice(0, 5).map((event) => (
                           <Badge
                             key={event.id}
-                            variant={event.type === "normal" ? "secondary" : "default"}
-                            className="gap-2"
+                            variant="outline"
+                            className={cn(
+                              "gap-2",
+                              event.type === "normal" && "bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700",
+                              event.type === "extra" && "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700",
+                              event.type === "folga" && "bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700"
+                            )}
                           >
-                            {new Date(event.startTime).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                            <span className="text-muted-foreground">-</span>
-                            {formatTime(event.startTime)}-{formatTime(event.endTime)}
+                            {event.type === "folga" ? (
+                              <>Folga - {new Date(event.startTime).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</>
+                            ) : (
+                              <>
+                                {new Date(event.startTime).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                                <span className="opacity-50">-</span>
+                                {formatTime(event.startTime)}-{formatTime(event.endTime)}
+                              </>
+                            )}
                             {canManageSchedule && (
                               <button
                                 onClick={() => deleteMutation.mutate(event.id)}
@@ -410,16 +450,20 @@ export default function Calendario() {
                 </div>
               )}
               <div className="grid gap-2">
-                <Label htmlFor="userId">Funcionário (opcional)</Label>
+                <Label htmlFor="userId">
+                  Funcionário {formData.type === "folga" ? "*" : "(opcional)"}
+                </Label>
                 <Select
                   value={formData.userId}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, userId: value === "all" ? "" : value }))}
                 >
                   <SelectTrigger data-testid="select-user">
-                    <SelectValue placeholder="Todos da loja" />
+                    <SelectValue placeholder={formData.type === "folga" ? "Selecione quem está de folga" : "Todos da loja"} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos da loja</SelectItem>
+                    {formData.type !== "folga" && (
+                      <SelectItem value="all">Todos da loja</SelectItem>
+                    )}
                     {activeUsers.map((user) => (
                       <SelectItem key={user.id} value={user.id}>
                         {user.fullName}
@@ -427,6 +471,11 @@ export default function Calendario() {
                     ))}
                   </SelectContent>
                 </Select>
+                {formData.type === "folga" && (
+                  <p className="text-xs text-muted-foreground">
+                    Todas as funcionárias da loja verão esta folga no calendário
+                  </p>
+                )}
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="title">Título *</Label>
@@ -464,28 +513,35 @@ export default function Calendario() {
                   data-testid="input-date"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="startTime">Início</Label>
-                  <Input
-                    id="startTime"
-                    type="time"
-                    value={formData.startTime}
-                    onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
-                    data-testid="input-start-time"
-                  />
+              {formData.type !== "folga" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="startTime">Início</Label>
+                    <Input
+                      id="startTime"
+                      type="time"
+                      value={formData.startTime}
+                      onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
+                      data-testid="input-start-time"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="endTime">Término</Label>
+                    <Input
+                      id="endTime"
+                      type="time"
+                      value={formData.endTime}
+                      onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
+                      data-testid="input-end-time"
+                    />
+                  </div>
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="endTime">Término</Label>
-                  <Input
-                    id="endTime"
-                    type="time"
-                    value={formData.endTime}
-                    onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
-                    data-testid="input-end-time"
-                  />
+              )}
+              {formData.type === "folga" && (
+                <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-400">
+                  Folga é dia inteiro - não é necessário definir horário
                 </div>
-              </div>
+              )}
               <div className="grid gap-2">
                 <Label htmlFor="description">Descrição</Label>
                 <Textarea
