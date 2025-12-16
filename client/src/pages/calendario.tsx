@@ -151,10 +151,10 @@ export default function Calendario() {
     
     const storeIdToUse = formData.storeId || currentUser?.storeId;
     
-    if (!formData.userId || !formData.date || !formData.title || !storeIdToUse) {
+    if (!formData.date || !formData.title || !storeIdToUse) {
       toast({
         title: "Campos obrigatórios",
-        description: "Preencha todos os campos obrigatórios (incluindo a loja).",
+        description: "Preencha todos os campos obrigatórios (Data, Título e Loja).",
         variant: "destructive",
       });
       return;
@@ -164,7 +164,7 @@ export default function Calendario() {
     const endDateTime = new Date(`${formData.date}T${formData.endTime}:00`);
 
     createMutation.mutate({
-      userId: formData.userId,
+      userId: formData.userId || null,
       storeId: storeIdToUse,
       title: formData.title,
       type: formData.type,
@@ -410,15 +410,16 @@ export default function Calendario() {
                 </div>
               )}
               <div className="grid gap-2">
-                <Label htmlFor="userId">Funcionário *</Label>
+                <Label htmlFor="userId">Funcionário (opcional)</Label>
                 <Select
                   value={formData.userId}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, userId: value }))}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, userId: value === "all" ? "" : value }))}
                 >
                   <SelectTrigger data-testid="select-user">
-                    <SelectValue placeholder="Selecione o funcionário" />
+                    <SelectValue placeholder="Todos da loja" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="all">Todos da loja</SelectItem>
                     {activeUsers.map((user) => (
                       <SelectItem key={user.id} value={user.id}>
                         {user.fullName}

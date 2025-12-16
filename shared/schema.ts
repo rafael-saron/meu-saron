@@ -29,7 +29,7 @@ export const chatMessages = pgTable("chat_messages", {
 
 export const scheduleEvents = pgTable("schedule_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: varchar("user_id").references(() => users.id),
   storeId: text("store_id").notNull(),
   title: text("title").notNull(),
   type: text("type").notNull(),
@@ -296,7 +296,10 @@ export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
   isRead: true,
 });
 
-export const insertScheduleEventSchema = createInsertSchema(scheduleEvents).omit({
+export const insertScheduleEventSchema = createInsertSchema(scheduleEvents, {
+  startTime: z.string().or(z.date()).transform((val) => typeof val === 'string' ? new Date(val) : val),
+  endTime: z.string().or(z.date()).transform((val) => typeof val === 'string' ? new Date(val) : val),
+}).omit({
   id: true,
   createdAt: true,
 });
