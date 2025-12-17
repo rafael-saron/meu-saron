@@ -491,7 +491,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (user.role === 'administrador' && storeId) {
         effectiveStoreId = storeId as string;
       } else {
-        effectiveStoreId = user.storeId;
+        effectiveStoreId = user.storeId || undefined;
       }
       
       const events = await storage.getScheduleEvents(
@@ -525,10 +525,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (currentUser.role === 'administrador' && requestedStoreId) {
         effectiveStoreId = requestedStoreId;
-      } else if (currentUser.role === 'gerente' && requestedStoreId === currentUser.storeId) {
+      } else if (currentUser.role === 'gerente' && requestedStoreId === currentUser.storeId && currentUser.storeId) {
+        effectiveStoreId = currentUser.storeId;
+      } else if (currentUser.storeId) {
         effectiveStoreId = currentUser.storeId;
       } else {
-        effectiveStoreId = currentUser.storeId;
+        return res.status(400).json({ error: "User has no store assigned" });
       }
       
       const eventData = { ...req.body, storeId: effectiveStoreId };
@@ -548,6 +550,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('[Schedule] Error creating event:', error);
       res.status(400).json({ error: "Invalid event data", details: error.message || String(error) });
+    }
+  });
+
+  app.get("/api/schedule/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const event = await storage.getScheduleEvent(id);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      res.json(event);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch event" });
+    }
+  });
+
+  app.patch("/api/schedule/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const sessionUserId = req.session.userId;
+      if (!sessionUserId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const currentUser = await storage.getUser(sessionUserId);
+      if (!currentUser || (currentUser.role !== 'administrador' && currentUser.role !== 'gerente')) {
+        return res.status(403).json({ error: "Permission denied" });
+      }
+      
+      const updated = await storage.updateScheduleEvent(id, req.body);
+      if (!updated) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update event" });
     }
   });
 

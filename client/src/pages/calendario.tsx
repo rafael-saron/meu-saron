@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, X, Pencil, Clock, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { User, ScheduleEvent } from "@shared/schema";
 
 const getDaysInMonth = (year: number, month: number) => {
@@ -37,10 +42,19 @@ const getDaysInMonth = (year: number, month: number) => {
   return { daysInMonth, startingDayOfWeek };
 };
 
+const typeLabels: Record<string, string> = {
+  normal: "Horário Normal",
+  extra: "Hora Extra",
+  folga: "Folga",
+};
+
 export default function Calendario() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [editingEvent, setEditingEvent] = useState<ScheduleEvent | null>(null);
+  const [viewingEvent, setViewingEvent] = useState<ScheduleEvent | null>(null);
   const { toast } = useToast();
   
   const year = currentDate.getFullYear();
@@ -82,6 +96,21 @@ export default function Calendario() {
     description: "",
   });
 
+  const resetForm = () => {
+    setFormData({
+      userId: "",
+      storeId: currentUser?.storeId || "",
+      title: "",
+      type: "normal",
+      date: "",
+      startTime: "09:00",
+      endTime: "18:00",
+      description: "",
+    });
+    setSelectedDate(null);
+    setEditingEvent(null);
+  };
+
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
       return apiRequest('POST', '/api/schedule', data);
@@ -104,12 +133,36 @@ export default function Calendario() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      return apiRequest('PATCH', `/api/schedule/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/schedule'] });
+      setIsDialogOpen(false);
+      resetForm();
+      toast({
+        title: "Horário atualizado",
+        description: "O horário foi atualizado com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao atualizar horário",
+        description: error.message || "Ocorreu um erro ao atualizar o horário.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       return apiRequest('DELETE', `/api/schedule/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/schedule'] });
+      setIsViewDialogOpen(false);
+      setViewingEvent(null);
       toast({
         title: "Horário removido",
         description: "O horário foi removido com sucesso.",
@@ -124,26 +177,39 @@ export default function Calendario() {
     },
   });
 
-  const resetForm = () => {
-    setFormData({
-      userId: "",
-      storeId: currentUser?.storeId || "",
-      title: "",
-      type: "normal",
-      date: "",
-      startTime: "09:00",
-      endTime: "18:00",
-      description: "",
-    });
-    setSelectedDate(null);
-  };
-
   const openDialog = (date?: string) => {
+    resetForm();
     if (date) {
       setFormData(prev => ({ ...prev, date }));
       setSelectedDate(date);
     }
     setIsDialogOpen(true);
+  };
+
+  const openEditDialog = (event: ScheduleEvent) => {
+    const eventDate = new Date(event.startTime);
+    const dateStr = eventDate.toISOString().split('T')[0];
+    const startTimeStr = eventDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const endTimeStr = new Date(event.endTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false });
+    
+    setEditingEvent(event);
+    setFormData({
+      userId: event.userId || "",
+      storeId: event.storeId,
+      title: event.title,
+      type: event.type,
+      date: dateStr,
+      startTime: startTimeStr,
+      endTime: endTimeStr,
+      description: event.description || "",
+    });
+    setIsViewDialogOpen(false);
+    setIsDialogOpen(true);
+  };
+
+  const openViewDialog = (event: ScheduleEvent) => {
+    setViewingEvent(event);
+    setIsViewDialogOpen(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -181,7 +247,7 @@ export default function Calendario() {
       endDateTime = new Date(`${formData.date}T${formData.endTime}:00`);
     }
 
-    createMutation.mutate({
+    const payload = {
       userId: formData.userId || null,
       storeId: storeIdToUse,
       title: formData.title,
@@ -190,7 +256,13 @@ export default function Calendario() {
       endTime: endDateTime.toISOString(),
       description: formData.description || null,
       createdById: currentUser?.id,
-    });
+    };
+
+    if (editingEvent) {
+      updateMutation.mutate({ id: editingEvent.id, data: payload });
+    } else {
+      createMutation.mutate(payload);
+    }
   };
 
   const previousMonth = () => {
@@ -225,7 +297,8 @@ export default function Calendario() {
     return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   };
 
-  const getUserName = (userId: string) => {
+  const getUserName = (userId: string | null) => {
+    if (!userId) return null;
     const user = users.find(u => u.id === userId);
     return user?.fullName || 'Usuário';
   };
@@ -239,6 +312,19 @@ export default function Calendario() {
   const activeUsers = users.filter(u => u.isActive && (u.role === 'vendedor' || u.role === 'gerente'));
 
   const canManageSchedule = currentUser?.role === 'administrador' || currentUser?.role === 'gerente';
+
+  const getEventColorClasses = (type: string) => {
+    switch (type) {
+      case "normal":
+        return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-300 dark:border-green-700";
+      case "extra":
+        return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-300 dark:border-blue-700";
+      case "folga":
+        return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-300 dark:border-red-700";
+      default:
+        return "bg-muted text-muted-foreground";
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -255,6 +341,21 @@ export default function Calendario() {
             Novo Horário
           </Button>
         )}
+      </div>
+
+      <div className="flex flex-wrap gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700" />
+          <span className="text-sm text-muted-foreground">Normal</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700" />
+          <span className="text-sm text-muted-foreground">Hora Extra</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700" />
+          <span className="text-sm text-muted-foreground">Folga</span>
+        </div>
       </div>
 
       <Card>
@@ -292,7 +393,7 @@ export default function Calendario() {
                   <div
                     key={index}
                     className={cn(
-                      "bg-card p-3 min-h-[100px]",
+                      "bg-card p-2 min-h-[100px]",
                       !day && "bg-muted/30",
                       day && canManageSchedule && "cursor-pointer hover-elevate"
                     )}
@@ -301,48 +402,59 @@ export default function Calendario() {
                   >
                     {day && (
                       <>
-                        <div className="text-sm font-medium text-foreground mb-2">{day}</div>
+                        <div className="text-sm font-medium text-foreground mb-1">{day}</div>
                         <div className="space-y-1">
                           {dayEvents.slice(0, 3).map((event) => {
                             const eventUser = event.userId ? users.find(u => u.id === event.userId) : null;
                             const displayName = eventUser ? eventUser.fullName.split(' ')[0] : '';
                             const isFolga = event.type === "folga";
+                            
                             return (
-                              <div
-                                key={event.id}
-                                className={cn(
-                                  "text-xs px-2 py-1 rounded-md flex items-center justify-between gap-1",
-                                  event.type === "normal" && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-                                  event.type === "extra" && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-                                  event.type === "folga" && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                                )}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <span className="truncate">
-                                  {isFolga ? (
-                                    <>Folga{displayName ? ` - ${displayName}` : ''}</>
-                                  ) : (
-                                    <>
-                                      {formatTime(event.startTime)}{displayName ? ` ${displayName}` : ''}
-                                    </>
-                                  )}
-                                </span>
-                                {canManageSchedule && (
-                                  <button
+                              <Tooltip key={event.id}>
+                                <TooltipTrigger asChild>
+                                  <div
+                                    className={cn(
+                                      "text-xs px-1.5 py-1 rounded flex items-center gap-1 cursor-pointer border",
+                                      getEventColorClasses(event.type)
+                                    )}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      deleteMutation.mutate(event.id);
+                                      openViewDialog(event);
                                     }}
-                                    className="hover:text-destructive flex-shrink-0"
                                   >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                )}
-                              </div>
+                                    <span className="truncate flex-1 font-medium">
+                                      {isFolga ? (
+                                        <>Folga{displayName ? ` - ${displayName}` : ''}</>
+                                      ) : (
+                                        <>
+                                          <span className="font-semibold">{formatTime(event.startTime)}</span>
+                                          {displayName && <span className="ml-1 opacity-80">{displayName}</span>}
+                                        </>
+                                      )}
+                                    </span>
+                                    {event.description && (
+                                      <FileText className="h-3 w-3 flex-shrink-0 opacity-60" />
+                                    )}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="max-w-xs">
+                                  <div className="space-y-1">
+                                    <p className="font-medium">{event.title}</p>
+                                    <p className="text-xs opacity-80">{typeLabels[event.type] || event.type}</p>
+                                    {!isFolga && (
+                                      <p className="text-xs">{formatTime(event.startTime)} - {formatTime(event.endTime)}</p>
+                                    )}
+                                    {displayName && <p className="text-xs">Funcionário: {displayName}</p>}
+                                    {event.description && (
+                                      <p className="text-xs border-t pt-1 mt-1">{event.description}</p>
+                                    )}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
                             );
                           })}
                           {dayEvents.length > 3 && (
-                            <div className="text-xs text-muted-foreground">
+                            <div className="text-xs text-muted-foreground pl-1">
                               +{dayEvents.length - 3} mais
                             </div>
                           )}
@@ -381,29 +493,21 @@ export default function Calendario() {
                             key={event.id}
                             variant="outline"
                             className={cn(
-                              "gap-2",
-                              event.type === "normal" && "bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700",
-                              event.type === "extra" && "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700",
-                              event.type === "folga" && "bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700"
+                              "gap-1 cursor-pointer",
+                              getEventColorClasses(event.type)
                             )}
+                            onClick={() => openViewDialog(event)}
                           >
                             {event.type === "folga" ? (
                               <>Folga - {new Date(event.startTime).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</>
                             ) : (
                               <>
                                 {new Date(event.startTime).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                                <span className="opacity-50">-</span>
+                                <span className="opacity-50">|</span>
                                 {formatTime(event.startTime)}-{formatTime(event.endTime)}
                               </>
                             )}
-                            {canManageSchedule && (
-                              <button
-                                onClick={() => deleteMutation.mutate(event.id)}
-                                className="ml-1 hover:text-destructive"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            )}
+                            {event.description && <FileText className="h-3 w-3 ml-1 opacity-60" />}
                           </Badge>
                         ))}
                         {userEvents.length > 5 && (
@@ -424,10 +528,97 @@ export default function Calendario() {
         </Card>
       )}
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Novo Horário</DialogTitle>
+            <DialogTitle>Detalhes do Evento</DialogTitle>
+          </DialogHeader>
+          {viewingEvent && (
+            <div className="py-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className={getEventColorClasses(viewingEvent.type)}>
+                  {typeLabels[viewingEvent.type] || viewingEvent.type}
+                </Badge>
+              </div>
+              
+              <div>
+                <Label className="text-muted-foreground text-xs">Título</Label>
+                <p className="font-medium">{viewingEvent.title}</p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground text-xs">Data</Label>
+                  <p className="font-medium">
+                    {new Date(viewingEvent.startTime).toLocaleDateString('pt-BR', { 
+                      day: '2-digit', 
+                      month: 'long',
+                      year: 'numeric'
+                    })}
+                  </p>
+                </div>
+                {viewingEvent.type !== "folga" && (
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Horário</Label>
+                    <p className="font-medium flex items-center gap-1">
+                      <Clock className="h-4 w-4" />
+                      {formatTime(viewingEvent.startTime)} - {formatTime(viewingEvent.endTime)}
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              {viewingEvent.userId && (
+                <div>
+                  <Label className="text-muted-foreground text-xs">Funcionário</Label>
+                  <p className="font-medium">{getUserName(viewingEvent.userId)}</p>
+                </div>
+              )}
+              
+              {viewingEvent.description && (
+                <div>
+                  <Label className="text-muted-foreground text-xs">Observação</Label>
+                  <p className="text-foreground whitespace-pre-wrap bg-muted/50 p-2 rounded-md">
+                    {viewingEvent.description}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            {canManageSchedule && viewingEvent && (
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={() => deleteMutation.mutate(viewingEvent.id)}
+                  disabled={deleteMutation.isPending}
+                  data-testid="button-delete-event"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir
+                </Button>
+                <Button
+                  onClick={() => openEditDialog(viewingEvent)}
+                  data-testid="button-edit-event"
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Editar
+                </Button>
+              </>
+            )}
+            {!canManageSchedule && (
+              <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+                Fechar
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{editingEvent ? "Editar Horário" : "Novo Horário"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
@@ -543,7 +734,7 @@ export default function Calendario() {
                 </div>
               )}
               <div className="grid gap-2">
-                <Label htmlFor="description">Descrição</Label>
+                <Label htmlFor="description">Observação</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
@@ -557,8 +748,8 @@ export default function Calendario() {
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit">
-                {createMutation.isPending ? "Salvando..." : "Salvar"}
+              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} data-testid="button-submit">
+                {(createMutation.isPending || updateMutation.isPending) ? "Salvando..." : "Salvar"}
               </Button>
             </DialogFooter>
           </form>

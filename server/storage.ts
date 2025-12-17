@@ -52,7 +52,9 @@ export interface IStorage {
   getUnreadCount(userId: string): Promise<number>;
   
   getScheduleEvents(storeId?: string, startDate?: Date, endDate?: Date): Promise<ScheduleEvent[]>;
+  getScheduleEvent(id: string): Promise<ScheduleEvent | undefined>;
   createScheduleEvent(event: InsertScheduleEvent): Promise<ScheduleEvent>;
+  updateScheduleEvent(id: string, event: Partial<ScheduleEvent>): Promise<ScheduleEvent | undefined>;
   deleteScheduleEvent(id: string): Promise<void>;
   
   getAnnouncements(): Promise<Announcement[]>;
@@ -225,9 +227,23 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(scheduleEvents).orderBy(scheduleEvents.startTime);
   }
 
+  async getScheduleEvent(id: string): Promise<ScheduleEvent | undefined> {
+    const [event] = await db.select().from(scheduleEvents).where(eq(scheduleEvents.id, id));
+    return event || undefined;
+  }
+
   async createScheduleEvent(insertEvent: InsertScheduleEvent): Promise<ScheduleEvent> {
     const [event] = await db.insert(scheduleEvents).values(insertEvent).returning();
     return event;
+  }
+
+  async updateScheduleEvent(id: string, updateData: Partial<ScheduleEvent>): Promise<ScheduleEvent | undefined> {
+    const [event] = await db
+      .update(scheduleEvents)
+      .set(updateData)
+      .where(eq(scheduleEvents.id, id))
+      .returning();
+    return event || undefined;
   }
 
   async deleteScheduleEvent(id: string): Promise<void> {

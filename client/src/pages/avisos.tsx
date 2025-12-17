@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, Pin, Plus, AlertTriangle, Info, AlertCircle, Trash2 } from "lucide-react";
+import { Bell, Pin, Plus, AlertTriangle, Info, AlertCircle, Trash2, Pencil, Store } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { User, Announcement } from "@shared/schema";
 
 const priorityConfig = {
@@ -53,9 +54,16 @@ const priorityConfig = {
   },
 };
 
+const storeLabels: Record<string, string> = {
+  saron1: "Saron 1",
+  saron2: "Saron 2",
+  saron3: "Saron 3",
+};
+
 export default function Avisos() {
   const [filter, setFilter] = useState<"all" | "pinned">("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
   const { toast } = useToast();
 
   const { data: currentUser } = useQuery<User>({
@@ -75,7 +83,36 @@ export default function Avisos() {
     content: "",
     priority: "normal",
     isPinned: false,
+    storeIds: [] as string[],
   });
+
+  const resetForm = () => {
+    setFormData({
+      title: "",
+      content: "",
+      priority: "normal",
+      isPinned: false,
+      storeIds: [],
+    });
+    setEditingAnnouncement(null);
+  };
+
+  const openNewDialog = () => {
+    resetForm();
+    setIsDialogOpen(true);
+  };
+
+  const openEditDialog = (announcement: Announcement) => {
+    setEditingAnnouncement(announcement);
+    setFormData({
+      title: announcement.title,
+      content: announcement.content,
+      priority: announcement.priority,
+      isPinned: announcement.isPinned,
+      storeIds: announcement.storeIds || [],
+    });
+    setIsDialogOpen(true);
+  };
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -94,6 +131,28 @@ export default function Avisos() {
       toast({
         title: "Erro ao criar aviso",
         description: error.message || "Ocorreu um erro ao criar o aviso.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      return apiRequest('PATCH', `/api/announcements/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/announcements'] });
+      setIsDialogOpen(false);
+      resetForm();
+      toast({
+        title: "Aviso atualizado",
+        description: "O aviso foi atualizado com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao atualizar aviso",
+        description: error.message || "Ocorreu um erro ao atualizar o aviso.",
         variant: "destructive",
       });
     },
@@ -119,13 +178,13 @@ export default function Avisos() {
     },
   });
 
-  const resetForm = () => {
-    setFormData({
-      title: "",
-      content: "",
-      priority: "normal",
-      isPinned: false,
-    });
+  const toggleStoreId = (storeId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      storeIds: prev.storeIds.includes(storeId)
+        ? prev.storeIds.filter(id => id !== storeId)
+        : [...prev.storeIds, storeId]
+    }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -140,13 +199,20 @@ export default function Avisos() {
       return;
     }
 
-    createMutation.mutate({
+    const payload = {
       title: formData.title,
       content: formData.content,
       priority: formData.priority,
       isPinned: formData.isPinned,
+      storeIds: formData.storeIds,
       authorId: currentUser?.id,
-    });
+    };
+
+    if (editingAnnouncement) {
+      updateMutation.mutate({ id: editingAnnouncement.id, data: payload });
+    } else {
+      createMutation.mutate(payload);
+    }
   };
 
   const getAuthorName = (authorId: string) => {
@@ -158,6 +224,12 @@ export default function Avisos() {
     const author = users.find(u => u.id === authorId);
     if (!author?.fullName) return 'AU';
     return author.fullName.split(' ').filter((n: string) => n).map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const getStoreLabel = (storeIds: string[] | null) => {
+    if (!storeIds || storeIds.length === 0) return "Todas as lojas";
+    if (storeIds.length === 3) return "Todas as lojas";
+    return storeIds.map(id => storeLabels[id] || id).join(", ");
   };
 
   const filteredAnnouncements = filter === "pinned"
@@ -176,7 +248,7 @@ export default function Avisos() {
           <p className="text-muted-foreground mt-1">Comunicações importantes da direção</p>
         </div>
         {canManageAnnouncements && (
-          <Button onClick={() => setIsDialogOpen(true)} data-testid="button-new-announcement">
+          <Button onClick={openNewDialog} data-testid="button-new-announcement">
             <Plus className="h-4 w-4 mr-2" />
             Novo Aviso
           </Button>
@@ -230,7 +302,7 @@ export default function Avisos() {
             {canManageAnnouncements && (
               <Button 
                 className="mt-4" 
-                onClick={() => setIsDialogOpen(true)}
+                onClick={openNewDialog}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Criar primeiro aviso
@@ -261,7 +333,7 @@ export default function Avisos() {
                         <Icon className="h-5 w-5" />
                       </div>
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <CardTitle className="text-lg font-display">{announcement.title}</CardTitle>
                           {announcement.isPinned && (
                             <Pin className="h-4 w-4 text-muted-foreground" fill="currentColor" />
@@ -284,19 +356,34 @@ export default function Avisos() {
                           <Badge variant="secondary" className={config.color}>
                             {config.label}
                           </Badge>
+                          <Badge variant="outline" className="gap-1">
+                            <Store className="h-3 w-3" />
+                            {getStoreLabel(announcement.storeIds)}
+                          </Badge>
                         </div>
                       </div>
                     </div>
                     {canManageAnnouncements && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteMutation.mutate(announcement.id)}
-                        className="text-muted-foreground hover:text-destructive"
-                        data-testid={`button-delete-${announcement.id}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditDialog(announcement)}
+                          className="text-muted-foreground hover:text-foreground"
+                          data-testid={`button-edit-${announcement.id}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteMutation.mutate(announcement.id)}
+                          className="text-muted-foreground hover:text-destructive"
+                          data-testid={`button-delete-${announcement.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </CardHeader>
@@ -309,10 +396,10 @@ export default function Avisos() {
         </div>
       )}
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Novo Aviso</DialogTitle>
+            <DialogTitle>{editingAnnouncement ? "Editar Aviso" : "Novo Aviso"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
@@ -336,6 +423,27 @@ export default function Avisos() {
                   className="min-h-[120px]"
                   data-testid="input-content"
                 />
+              </div>
+              <div className="grid gap-2">
+                <Label>Lojas destinatárias</Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Deixe vazio para enviar para todas as lojas
+                </p>
+                <div className="flex flex-wrap gap-4">
+                  {["saron1", "saron2", "saron3"].map((storeId) => (
+                    <div key={storeId} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`store-${storeId}`}
+                        checked={formData.storeIds.includes(storeId)}
+                        onCheckedChange={() => toggleStoreId(storeId)}
+                        data-testid={`checkbox-store-${storeId}`}
+                      />
+                      <Label htmlFor={`store-${storeId}`} className="text-sm font-normal cursor-pointer">
+                        {storeLabels[storeId]}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="priority">Prioridade</Label>
@@ -372,8 +480,8 @@ export default function Avisos() {
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit">
-                {createMutation.isPending ? "Publicando..." : "Publicar"}
+              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} data-testid="button-submit">
+                {(createMutation.isPending || updateMutation.isPending) ? "Salvando..." : (editingAnnouncement ? "Salvar" : "Publicar")}
               </Button>
             </DialogFooter>
           </form>

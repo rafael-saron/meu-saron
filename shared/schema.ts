@@ -47,6 +47,7 @@ export const announcements = pgTable("announcements", {
   priority: text("priority").notNull().default("normal"),
   authorId: varchar("author_id").notNull().references(() => users.id),
   isPinned: boolean("is_pinned").notNull().default(false),
+  storeIds: text("store_ids").array().default(sql`ARRAY[]::text[]`),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -308,6 +309,8 @@ export const insertAnnouncementSchema = createInsertSchema(announcements).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  storeIds: z.array(z.enum(["saron1", "saron2", "saron3"])).optional().default([]),
 });
 
 export const insertAnonymousMessageSchema = createInsertSchema(anonymousMessages).omit({

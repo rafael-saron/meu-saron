@@ -79,7 +79,8 @@ export function useDapicVendasPDV(storeId: string, params?: {
       return response.json();
     },
     enabled: !!storeId && (params?.enabled !== false),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 2 * 60 * 1000,
   });
 }
 
