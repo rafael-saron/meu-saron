@@ -1,6 +1,25 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { ChatMessage, InsertChatMessage } from "@shared/schema";
+import type { ChatMessage, InsertChatMessage, User } from "@shared/schema";
+
+interface ConversationUser extends User {
+  lastMessageAt: string | null;
+  unreadCount: number;
+  lastMessage: string | null;
+}
+
+interface ConversationsResponse {
+  users: ConversationUser[];
+  unreadCount: number;
+}
+
+export function useConversations(userId: string) {
+  return useQuery<ConversationsResponse>({
+    queryKey: ["/api/chat/conversations", userId],
+    enabled: !!userId,
+    refetchInterval: 30000,
+  });
+}
 
 export function useChatMessages(userId1: string, userId2: string) {
   return useQuery<ChatMessage[]>({
@@ -17,6 +36,9 @@ export function useMarkMessagesAsRead() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["/api/chat/unread-count", variables.receiverId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/chat/conversations", variables.receiverId],
       });
     },
   });
@@ -39,6 +61,12 @@ export function useSendMessage() {
       });
       queryClient.invalidateQueries({
         queryKey: ["/api/chat/unread-count", variables.senderId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/chat/conversations", variables.senderId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/chat/conversations", variables.receiverId],
       });
     },
   });

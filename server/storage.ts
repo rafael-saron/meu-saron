@@ -50,6 +50,7 @@ export interface IStorage {
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
   markMessagesAsRead(senderId: string, receiverId: string): Promise<void>;
   getUnreadCount(userId: string): Promise<number>;
+  getConversations(userId: string): Promise<{ partnerId: string; lastMessageAt: Date; unreadCount: number; lastMessage: string }[]>;
   
   getScheduleEvents(storeId?: string, startDate?: Date, endDate?: Date): Promise<ScheduleEvent[]>;
   getScheduleEvent(id: string): Promise<ScheduleEvent | undefined>;
@@ -201,6 +202,46 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(chatMessages.receiverId, userId), eq(chatMessages.isRead, false)));
     
     return Number(result[0]?.count) || 0;
+  }
+
+  async getConversations(userId: string): Promise<{ partnerId: string; lastMessageAt: Date; unreadCount: number; lastMessage: string }[]> {
+    // Get all messages involving this user
+    const allMessages = await db
+      .select()
+      .from(chatMessages)
+      .where(
+        or(
+          eq(chatMessages.senderId, userId),
+          eq(chatMessages.receiverId, userId)
+        )
+      )
+      .orderBy(desc(chatMessages.createdAt));
+
+    // Group by conversation partner
+    const conversationMap = new Map<string, { lastMessageAt: Date; unreadCount: number; lastMessage: string }>();
+    
+    for (const msg of allMessages) {
+      const partnerId = msg.senderId === userId ? msg.receiverId : msg.senderId;
+      
+      if (!conversationMap.has(partnerId)) {
+        conversationMap.set(partnerId, {
+          lastMessageAt: msg.createdAt,
+          unreadCount: 0,
+          lastMessage: msg.content,
+        });
+      }
+      
+      // Count unread messages (messages sent to this user that are not read)
+      if (msg.receiverId === userId && !msg.isRead) {
+        const conv = conversationMap.get(partnerId)!;
+        conv.unreadCount++;
+      }
+    }
+    
+    // Convert to array and sort by lastMessageAt descending
+    return Array.from(conversationMap.entries())
+      .map(([partnerId, data]) => ({ partnerId, ...data }))
+      .sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime());
   }
 
   async getScheduleEvents(storeId?: string, startDate?: Date, endDate?: Date): Promise<ScheduleEvent[]> {

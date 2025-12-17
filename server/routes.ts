@@ -397,9 +397,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId } = req.params;
       const allUsers = await storage.getAllUsers();
-      const unreadCount = await storage.getUnreadCount(userId);
+      const conversations = await storage.getConversations(userId);
+      const totalUnread = await storage.getUnreadCount(userId);
       
-      res.json({ users: allUsers, unreadCount });
+      // Create a map of partnerId -> conversation data
+      const conversationMap = new Map(conversations.map(c => [c.partnerId, c]));
+      
+      // Create a map of userId -> user for active users
+      const activeUserMap = new Map(allUsers.map(u => [u.id, u]));
+      
+      // Start with active users (excluding self)
+      const usersWithConversations = allUsers
+        .filter(u => u.id !== userId)
+        .map(user => ({
+          ...user,
+          lastMessageAt: conversationMap.get(user.id)?.lastMessageAt || null,
+          unreadCount: conversationMap.get(user.id)?.unreadCount || 0,
+          lastMessage: conversationMap.get(user.id)?.lastMessage || null,
+        }));
+      
+      // Add inactive users who have conversations (especially with unread messages)
+      for (const conv of conversations) {
+        if (!activeUserMap.has(conv.partnerId) && conv.partnerId !== userId) {
+          // This is an inactive user with message history - fetch their info
+          const inactiveUser = await storage.getUser(conv.partnerId);
+          if (inactiveUser) {
+            usersWithConversations.push({
+              ...inactiveUser,
+              lastMessageAt: conv.lastMessageAt,
+              unreadCount: conv.unreadCount,
+              lastMessage: conv.lastMessage,
+            });
+          }
+        }
+      }
+      
+      // Sort: users with messages come first by last message date, then alphabetically
+      usersWithConversations.sort((a, b) => {
+        if (a.lastMessageAt && b.lastMessageAt) {
+          return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+        }
+        if (a.lastMessageAt) return -1;
+        if (b.lastMessageAt) return 1;
+        return a.fullName.localeCompare(b.fullName);
+      });
+      
+      res.json({ users: usersWithConversations, unreadCount: totalUnread });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch conversations" });
     }
@@ -579,12 +622,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Permission denied" });
       }
       
-      const updated = await storage.updateScheduleEvent(id, req.body);
+      // Process the update data - convert date/time strings to Date objects
+      const { date, startTime: startTimeStr, endTime: endTimeStr, ...rest } = req.body;
+      const updateData: any = { ...rest };
+      
+      // If date and time strings are provided, convert to Date objects
+      if (date && startTimeStr) {
+        updateData.startTime = new Date(`${date}T${startTimeStr}:00`);
+      }
+      if (date && endTimeStr) {
+        updateData.endTime = new Date(`${date}T${endTimeStr}:00`);
+      }
+      // If startTime/endTime are already ISO strings (from direct Date objects)
+      if (req.body.startTime && typeof req.body.startTime === 'string' && req.body.startTime.includes('T')) {
+        updateData.startTime = new Date(req.body.startTime);
+      }
+      if (req.body.endTime && typeof req.body.endTime === 'string' && req.body.endTime.includes('T')) {
+        updateData.endTime = new Date(req.body.endTime);
+      }
+      
+      const updated = await storage.updateScheduleEvent(id, updateData);
       if (!updated) {
         return res.status(404).json({ error: "Event not found" });
       }
       res.json(updated);
     } catch (error) {
+      console.error('[Schedule] Error updating event:', error);
       res.status(500).json({ error: "Failed to update event" });
     }
   });
@@ -1086,12 +1149,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       if (user.role === 'vendedor') {
-        const vendorGoals = currentGoals.filter(goal => 
-          goal.type === 'individual' && goal.sellerId === user.id
-        );
+        // Vendedores da saron2 têm metas conjuntas (team), então mostram metas de equipe da loja
+        const isSaron2Seller = user.storeId === 'saron2';
+        
+        let vendorGoals;
+        if (isSaron2Seller) {
+          // Para vendedores da saron2: mostrar metas de equipe da loja
+          vendorGoals = currentGoals.filter(goal => 
+            goal.storeId === 'saron2' && goal.type === 'team'
+          );
+        } else {
+          // Para outros vendedores: mostrar apenas suas metas individuais
+          vendorGoals = currentGoals.filter(goal => 
+            goal.type === 'individual' && goal.sellerId === user.id
+          );
+        }
 
         const goalsWithProgress = await Promise.all(vendorGoals.map(goal => 
-          calculateGoalProgress(goal, user.fullName, user)
+          calculateGoalProgress(goal, isSaron2Seller ? undefined : user.fullName, user)
         ));
 
         return res.json(goalsWithProgress);

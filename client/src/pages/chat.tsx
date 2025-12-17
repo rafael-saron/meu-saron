@@ -8,14 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/lib/user-context";
-import { useUsers } from "@/hooks/use-users";
-import { useChatMessages, useSendMessage, useMarkMessagesAsRead } from "@/hooks/use-chat";
+import { useConversations, useChatMessages, useSendMessage, useMarkMessagesAsRead } from "@/hooks/use-chat";
 import { queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Chat() {
   const { user: currentUser } = useUser();
-  const { data: users, isLoading: usersLoading } = useUsers();
+  const { data: conversationsData, isLoading: usersLoading } = useConversations(currentUser?.id || "");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -28,7 +27,7 @@ export default function Chat() {
   const sendMessageMutation = useSendMessage();
   const markAsReadMutation = useMarkMessagesAsRead();
 
-  const otherUsers = users?.filter((u) => u.id !== currentUser?.id) || [];
+  const otherUsers = conversationsData?.users || [];
   const selectedUser = otherUsers.find((u) => u.id === selectedUserId);
   const lastMarkedKeyRef = useRef<string>("");
 
@@ -163,18 +162,39 @@ export default function Chat() {
                   )}
                   data-testid={`button-conversation-${user.id}`}
                 >
-                  <Avatar className="h-10 w-10">
-                    {user.avatar && <AvatarImage src={user.avatar} alt={user.fullName} />}
-                    <AvatarFallback className="text-sm font-medium">
-                      {getInitials(user.fullName)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar className="h-10 w-10">
+                      {user.avatar && <AvatarImage src={user.avatar} alt={user.fullName} />}
+                      <AvatarFallback className="text-sm font-medium">
+                        {getInitials(user.fullName)}
+                      </AvatarFallback>
+                    </Avatar>
+                    {user.unreadCount > 0 && (
+                      <Badge 
+                        className="absolute -top-1 -right-1 h-5 min-w-[1.25rem] px-1 flex items-center justify-center text-xs"
+                        variant="destructive"
+                        data-testid={`badge-unread-${user.id}`}
+                      >
+                        {user.unreadCount}
+                      </Badge>
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <p className="font-medium text-foreground truncate">{user.fullName}</p>
+                      <p className={cn(
+                        "font-medium truncate",
+                        user.unreadCount > 0 ? "text-foreground font-semibold" : "text-foreground"
+                      )}>{user.fullName}</p>
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm text-muted-foreground truncate capitalize">{user.role}</p>
+                      {user.lastMessage ? (
+                        <p className={cn(
+                          "text-sm truncate",
+                          user.unreadCount > 0 ? "text-foreground" : "text-muted-foreground"
+                        )}>{user.lastMessage}</p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground truncate capitalize">{user.role}</p>
+                      )}
                     </div>
                   </div>
                 </button>

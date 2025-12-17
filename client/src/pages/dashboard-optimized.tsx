@@ -366,7 +366,9 @@ export default function Dashboard() {
 
   const isConsolidated = selectedStore === "todas";
 
-  const sellerFilter = user?.role === "vendedor" ? user.fullName : undefined;
+  // Vendedores da saron2 têm metas conjuntas, então veem todas as vendas da loja
+  const isSaron2Seller = user?.role === "vendedor" && user?.storeId === "saron2";
+  const sellerFilter = user?.role === "vendedor" && !isSaron2Seller ? user.fullName : undefined;
 
   const chartData = useMemo(() => {
     const salesList = extractSalesList(salesData, isConsolidated, sellerFilter);
@@ -443,9 +445,14 @@ export default function Dashboard() {
             Meu Saron
           </h1>
           <p className="text-muted-foreground mt-1">Visão geral do desempenho</p>
-          {user?.role === "vendedor" && (
+          {user?.role === "vendedor" && !isSaron2Seller && (
             <p className="text-sm text-muted-foreground mt-1">
               Você está visualizando apenas suas vendas
+            </p>
+          )}
+          {isSaron2Seller && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Você está visualizando todas as vendas da loja (meta conjunta)
             </p>
           )}
           {user?.role !== "vendedor" && !canChangeStore && user?.storeId && (
