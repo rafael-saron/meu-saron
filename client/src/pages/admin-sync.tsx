@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw, CheckCircle2, AlertTriangle, Search, History } from "lucide-react";
+import { Loader2, RefreshCw, CheckCircle2, AlertTriangle, Search, History, Calendar, CalendarDays } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/lib/user-context";
@@ -104,6 +104,47 @@ export default function AdminSync() {
     },
   });
 
+  const quickSyncMutation = useMutation({
+    mutationFn: async (type: 'today' | 'month') => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      
+      let startDate: string;
+      let endDate: string;
+      
+      if (type === 'today') {
+        startDate = `${year}-${month}-${day}`;
+        endDate = startDate;
+      } else {
+        startDate = `${year}-${month}-01`;
+        const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+        endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+      }
+      
+      const response = await apiRequest('POST', '/api/sales/sync', { 
+        startDate,
+        endDate,
+      });
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Sincronização concluída",
+        description: `${data.totalSales || 0} vendas sincronizadas`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/sales/summary'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro na sincronização",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleHistoricalSync = () => {
     if (!user) return;
     historicalSyncMutation.mutate({ year: historicalYear, storeId: historicalStore });
@@ -189,6 +230,57 @@ export default function AdminSync() {
           </p>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Sincronização Rápida
+          </CardTitle>
+          <CardDescription>
+            Sincronize as vendas do dia atual ou do mês inteiro
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-4 flex-wrap">
+            <Button 
+              onClick={() => quickSyncMutation.mutate('today')}
+              disabled={quickSyncMutation.isPending}
+              data-testid="button-sync-today"
+            >
+              {quickSyncMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Calendar className="mr-2 h-4 w-4" />
+              )}
+              Sincronizar Hoje
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => quickSyncMutation.mutate('month')}
+              disabled={quickSyncMutation.isPending}
+              data-testid="button-sync-month"
+            >
+              {quickSyncMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CalendarDays className="mr-2 h-4 w-4" />
+              )}
+              Sincronizar Mês Atual
+            </Button>
+          </div>
+          {quickSyncMutation.data && (
+            <div className="p-4 rounded-lg border border-green-200 bg-green-50 dark:bg-green-900/20 dark:border-green-800">
+              <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                <CheckCircle2 className="h-5 w-5" />
+                <span className="font-medium">
+                  {quickSyncMutation.data.totalSales || 0} vendas sincronizadas
+                </span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -426,6 +518,7 @@ export default function AdminSync() {
                   <SelectItem value="2022">2022</SelectItem>
                   <SelectItem value="2023">2023</SelectItem>
                   <SelectItem value="2024">2024</SelectItem>
+                  <SelectItem value="2025">2025</SelectItem>
                 </SelectContent>
               </Select>
             </div>
