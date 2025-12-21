@@ -3638,8 +3638,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       const monthEndStr = monthEnd.toISOString().split('T')[0];
 
-      const sellerFilter = user.role === 'vendedor' ? user.fullName : undefined;
-      const storeFilter = storeId as string;
+      // Vendedores da saron2 veem vendas da loja toda (meta conjunta)
+      const isSaron2Seller = user.role === 'vendedor' && user.storeId === 'saron2';
+      const sellerFilter = (user.role === 'vendedor' && !isSaron2Seller) ? user.fullName : undefined;
+      
+      // Tratar storeId vazio ou undefined como "todas"
+      const storeFilter = (storeId && storeId !== 'todas' && storeId !== '') ? storeId as string : undefined;
+
+      console.log('[SalesSummary] Filters:', { 
+        storeId, 
+        storeFilter, 
+        sellerFilter, 
+        todayStr, 
+        weekStartStr, 
+        weekEndStr,
+        userRole: user.role,
+        isSaron2Seller
+      });
 
       const [todaySales, weekSales, monthSales] = await Promise.all([
         storage.getSales({
