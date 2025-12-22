@@ -1050,10 +1050,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { storeId } = req.query;
       
-      const now = new Date();
+      // Use Brazil timezone (UTC-3) for consistent date comparison
+      const getBrazilDate = () => {
+        const now = new Date();
+        const brazilOffset = -3 * 60; // UTC-3 in minutes
+        const utcOffset = now.getTimezoneOffset();
+        return new Date(now.getTime() + (utcOffset + brazilOffset) * 60 * 1000);
+      };
+      
+      const now = getBrazilDate();
       const todayStr = now.toISOString().split('T')[0];
       const dayMs = 1000 * 60 * 60 * 24;
       const nowUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      console.log('[GoalsDashboard] todayStr:', todayStr, 'storeId:', storeId, 'userRole:', user.role);
       
       const allActiveGoals = await storage.getSalesGoals({ isActive: true });
       
@@ -1067,8 +1077,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const currentGoals = allActiveGoals.filter(goal => {
-        return todayStr >= goal.weekStart && todayStr <= goal.weekEnd;
+        const isWithinRange = todayStr >= goal.weekStart && todayStr <= goal.weekEnd;
+        if (goal.storeId === 'saron2') {
+          console.log('[GoalsDashboard] Saron2 goal:', goal.id, 'period:', goal.period, 'weekStart:', goal.weekStart, 'weekEnd:', goal.weekEnd, 'isActive:', goal.isActive, 'isWithinRange:', isWithinRange);
+        }
+        return isWithinRange;
       });
+      
+      console.log('[GoalsDashboard] currentGoals count:', currentGoals.length, 'allActiveGoals count:', allActiveGoals.length);
 
       // Helper function to calculate goal progress
       const calculateGoalProgress = async (goal: typeof currentGoals[0], sellerName?: string, sellerUser?: typeof user) => {
