@@ -71,7 +71,10 @@ export default function Calendario() {
   });
 
   const startDate = new Date(year, month, 1).toISOString();
-  const endDate = new Date(year, month + 1, 0).toISOString();
+  // Use end of day (23:59:59.999) for the last day of month to include all events on that day
+  const lastDayOfMonth = new Date(year, month + 1, 0);
+  lastDayOfMonth.setHours(23, 59, 59, 999);
+  const endDate = lastDayOfMonth.toISOString();
   
   const { data: events = [], isLoading } = useQuery<ScheduleEvent[]>({
     queryKey: ['/api/schedule', startDate, endDate],

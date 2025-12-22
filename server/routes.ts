@@ -1448,26 +1448,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive: true 
       });
 
+      // Find goal that contains today's date (not exact match)
+      const todayStr = now.toISOString().split('T')[0];
       const currentGoal = cashierGoals.find(g => 
         g.periodType === 'weekly' && 
-        g.weekStart === weekStart && 
-        g.weekEnd === weekEnd
+        todayStr >= g.weekStart && 
+        todayStr <= g.weekEnd
       );
 
       if (!currentGoal) {
         return res.json({
           hasGoal: false,
           message: "Nenhuma meta semanal encontrada para esta semana",
-          weekStart,
-          weekEnd,
+          weekStart: todayStr,
+          weekEnd: todayStr,
         });
       }
+
+      // Use goal's date range for fetching sales
+      const goalWeekStart = currentGoal.weekStart;
+      const goalWeekEnd = currentGoal.weekEnd;
 
       // Get store sales for the week
       const storeSales = await storage.getSales({
         storeId: currentGoal.storeId,
-        startDate: weekStart,
-        endDate: weekEnd,
+        startDate: goalWeekStart,
+        endDate: goalWeekEnd,
       });
 
       const totalStoreSales = storeSales.reduce((sum, s) => sum + parseFloat(s.totalValue), 0);
@@ -1476,8 +1482,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get sales by target payment methods
       const receiptTotals = await storage.getReceiptsByPaymentMethod(
         currentGoal.storeId,
-        weekStart,
-        weekEnd,
+        goalWeekStart,
+        goalWeekEnd,
         paymentMethods
       );
 
@@ -1491,8 +1497,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isGoalMet = percentageAchieved >= targetPercentage;
 
       // Calculate elapsed time for on-track calculation
-      const startDate = new Date(weekStart + 'T00:00:00');
-      const endDate = new Date(weekEnd + 'T23:59:59');
+      const startDate = new Date(goalWeekStart + 'T00:00:00');
+      const endDate = new Date(goalWeekEnd + 'T23:59:59');
       const totalDays = 7;
       let elapsedDays = 0;
 
@@ -1510,8 +1516,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         goal: {
           id: currentGoal.id,
           storeId: currentGoal.storeId,
-          weekStart,
-          weekEnd,
+          weekStart: goalWeekStart,
+          weekEnd: goalWeekEnd,
           paymentMethods,
           targetPercentage,
           currentPercentage: Math.round(percentageAchieved * 100) / 100,
