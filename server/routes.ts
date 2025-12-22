@@ -1694,10 +1694,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // For vendedores and gerentes, fetch sales goals
-      const allGoals = await storage.getSalesGoals({
-        sellerId: user.id,
-        type: 'individual',
-      });
+      // Special case: Saron 2 sellers see team goals instead of individual goals
+      const isSaron2Seller = user.role === 'vendedor' && user.storeId === 'saron2';
+      
+      let allGoals;
+      if (isSaron2Seller) {
+        // Saron 2 sellers see team goals for their store
+        allGoals = await storage.getSalesGoals({
+          storeId: 'saron2',
+          type: 'team',
+        });
+      } else {
+        // Other sellers see their individual goals
+        allGoals = await storage.getSalesGoals({
+          sellerId: user.id,
+          type: 'individual',
+        });
+      }
 
       // Filter goals that fall within the last 4 weeks
       const recentGoals = allGoals.filter(goal => {
@@ -1707,9 +1720,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate progress and bonus for each goal
       const goalsWithProgress = await Promise.all(recentGoals.map(async (goal) => {
         // Get sales for this goal period
+        // For team goals (Saron 2), get all store sales; for individual goals, get seller-specific sales
+        const isTeamGoal = goal.type === 'team';
         const sales = await storage.getSales({
           storeId: goal.storeId,
-          sellerName: user.fullName,
+          sellerName: isTeamGoal ? undefined : user.fullName,
           startDate: goal.weekStart,
           endDate: goal.weekEnd,
         });
@@ -1760,6 +1775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           bonusPercentageNotAchieved,
           appliedBonusPercentage,
           bonusValue,
+          isTeamGoal,
         };
       }));
 

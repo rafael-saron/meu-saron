@@ -27,6 +27,8 @@ interface PersonalGoal {
   paymentMethods?: string[];
   totalStoreSales?: number;
   targetMethodSales?: number;
+  // Team goal indicator
+  isTeamGoal?: boolean;
 }
 
 interface PersonalGoalsResponse {
@@ -141,6 +143,7 @@ export default function MetasPessoais() {
   }
 
   const { goals, summary, isCashierData } = data;
+  const hasTeamGoals = goals.some(g => g.isTeamGoal);
 
   return (
     <div className="space-y-6">
@@ -152,7 +155,9 @@ export default function MetasPessoais() {
         <p className="text-muted-foreground mt-1">
           {isCashierData 
             ? "Acompanhe suas metas de caixa e bônus das últimas 4 semanas"
-            : "Acompanhe suas metas individuais e bônus das últimas 4 semanas"
+            : hasTeamGoals
+              ? "Acompanhe as metas da equipe e bônus das últimas 4 semanas"
+              : "Acompanhe suas metas individuais e bônus das últimas 4 semanas"
           }
         </p>
       </div>
@@ -227,7 +232,10 @@ export default function MetasPessoais() {
             <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-foreground mb-2">Nenhuma Meta Encontrada</h3>
             <p className="text-muted-foreground">
-              Você ainda não possui metas individuais atribuídas.
+              {user?.storeId === 'saron2' && user?.role === 'vendedor'
+                ? "Ainda não há metas conjuntas cadastradas para sua loja."
+                : "Você ainda não possui metas individuais atribuídas."
+              }
             </p>
           </CardContent>
         </Card>
@@ -253,6 +261,9 @@ export default function MetasPessoais() {
                         <div className="flex-1">
                           <CardTitle className="text-base font-semibold flex items-center gap-2 flex-wrap">
                             {getStoreLabel(goal.storeId)}
+                            {goal.isTeamGoal && (
+                              <Badge variant="outline" className="text-xs">Conjunta</Badge>
+                            )}
                             <Badge 
                               variant={goal.isFinished ? (goal.achieved ? "default" : "destructive") : "secondary"} 
                               className="text-xs"
@@ -384,6 +395,9 @@ export default function MetasPessoais() {
                         <div className="flex-1">
                           <CardTitle className="text-base font-semibold flex items-center gap-2 flex-wrap">
                             {getStoreLabel(goal.storeId)}
+                            {goal.isTeamGoal && (
+                              <Badge variant="outline" className="text-xs">Conjunta</Badge>
+                            )}
                             <Badge 
                               variant={goal.isFinished ? (goal.achieved ? "default" : "destructive") : "secondary"} 
                               className="text-xs"
