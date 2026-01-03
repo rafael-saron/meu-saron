@@ -1,83 +1,105 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { DatabaseStorage } from "./storage";
 import { initializeCronJobs } from "./cronJobs";
+import { pgPool } from "./db";
 
 const app = express();
 
-// Trust proxy - required for secure cookies behind Replit's reverse proxy
-app.set('trust proxy', 1);
+/**
+ * Railway / Reverse proxy
+ */
+app.set("trust proxy", 1);
 
-// CRITICAL: Health check endpoint must be registered FIRST, before any middleware
-// This ensures the endpoint responds immediately for deployment health checks
-// without waiting for database connections or external services
+/**
+ * Health checks (precisam vir antes de tudo)
+ */
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Also support root-level health check for some deployment systems
 app.get("/_health", (_req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-declare module 'http' {
+/**
+ * Tipagens auxiliares
+ */
+declare module "http" {
   interface IncomingMessage {
-    rawBody: unknown
+    rawBody?: Buffer;
   }
 }
 
-declare module 'express-session' {
+declare module "express-session" {
   interface SessionData {
-    userId: string;
+    userId?: string;
   }
 }
-app.use(express.json({
-  verify: (req, _res, buf) => {
-    req.rawBody = buf;
-  }
-}));
+
+/**
+ * Body parsers
+ */
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use(express.urlencoded({ extended: false }));
 
-const isProduction = process.env.NODE_ENV === "production";
+/**
+ * Sessão persistente no PostgreSQL
+ */
+const isProd = process.env.NODE_ENV === "production";
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "saron-secret-key-change-in-production",
+    store: new PgSession({
+      pool: pgPool,
+      tableName: "session",
+      createTableIfMissing: true,
+    }),
+    secret: process.env.SESSION_SECRET || "CHANGE_ME",
     resave: false,
     saveUninitialized: false,
-    proxy: true,
+    proxy: isProd,
     cookie: {
-      secure: isProduction,
+      secure: isProd,                 // ❗ false em localhost
+      sameSite: isProd ? "none" : "lax",
       httpOnly: true,
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-      sameSite: isProduction ? 'none' : 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 7,
     },
   })
 );
 
+/**
+ * Logger de API
+ */
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
+  const originalJson = res.json.bind(res);
+  res.json = (body: any) => {
+    res.locals.body = body;
+    return originalJson(body);
   };
 
   res.on("finish", () => {
-    const duration = Date.now() - start;
     if (path.startsWith("/api")) {
+      const duration = Date.now() - start;
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
 
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
+      if (res.locals.body) {
+        const bodyStr = JSON.stringify(res.locals.body);
+        logLine += ` :: ${bodyStr.length > 80 ? bodyStr.slice(0, 79) + "…" : bodyStr}`;
       }
 
       log(logLine);
@@ -87,90 +109,70 @@ app.use((req, res, next) => {
   next();
 });
 
+/**
+ * Garante usuário admin
+ */
 async function ensureAdminUser() {
   try {
     const storage = new DatabaseStorage();
-    const existingAdmin = await storage.getUserByUsername("admin");
-    
-    if (!existingAdmin || !existingAdmin.isActive) {
-      if (existingAdmin && !existingAdmin.isActive) {
-        await storage.updateUser(existingAdmin.id, { isActive: true });
-        log("✅ Admin user reactivated");
-      } else {
-        await storage.createUser({
-          username: "admin",
-          email: "admin@saron.com.br",
-          password: "admin123",
-          fullName: "Administrador",
-          role: "administrador",
-          isActive: true,
-        });
-        log("✅ Admin user created with default credentials");
-      }
+    const admin = await storage.getUserByUsername("admin");
+
+    if (!admin) {
+      await storage.createUser({
+        username: "admin",
+        email: "admin@vistasaron.com.br",
+        password: "admin123",
+        fullName: "Administrador",
+        role: "administrador",
+        isActive: true,
+      });
+      log("✅ Admin user created");
+    } else if (!admin.isActive) {
+      await storage.updateUser(admin.id, { isActive: true });
+      log("✅ Admin user reactivated");
     }
-  } catch (error) {
-    console.error("Error ensuring admin user:", error);
+  } catch (err) {
+    console.error("❌ Error ensuring admin user:", err);
   }
 }
 
+/**
+ * Bootstrap do servidor
+ */
 (async () => {
   try {
     const server = await registerRoutes(app);
 
-    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-      const status = err.status || err.statusCode || 500;
-      const message = err.message || "Internal Server Error";
+    app.use(
+      (err: any, _req: Request, res: Response, _next: NextFunction) => {
+        const status = err.status || err.statusCode || 500;
+        res.status(status).json({ message: err.message || "Internal Server Error" });
+      }
+    );
 
-      res.status(status).json({ message });
-      throw err;
-    });
+    app.use("/uploads", express.static("public/uploads"));
 
-    // Serve uploads directory for user avatars and other uploads
-    app.use('/uploads', express.static('public/uploads'));
-
-    // importantly only setup vite in development and after
-    // setting up all the other routes so the catch-all route
-    // doesn't interfere with the other routes
     if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
       serveStatic(app);
     }
 
-    // ALWAYS serve the app on the port specified in the environment variable PORT
-    // Other ports are firewalled. Default to 5000 if not specified.
-    // this serves both the API and the client.
-    // It is the only port that is not firewalled.
-    const port = parseInt(process.env.PORT || '5000', 10);
-    server.listen({
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    }, () => {
-      log(`serving on port ${port}`);
-      
-      // Initialize admin user and cron jobs AFTER server is listening
-      // This ensures health checks succeed before expensive operations
+    const port = Number(process.env.PORT || 5000);
+
+    server.listen(port, "0.0.0.0", () => {
+      log(`🚀 Server running on port ${port}`);
+
       setImmediate(async () => {
-        try {
-          await ensureAdminUser();
-          log('✓ Admin user initialization complete');
-        } catch (error) {
-          console.error('✗ Failed to initialize admin user:', error);
-          // Don't crash the server - admin can be created manually if needed
-        }
-        
-        try {
-          initializeCronJobs();
-          log('✓ Cron jobs initialization complete');
-        } catch (error) {
-          console.error('✗ Failed to initialize cron jobs:', error);
-          // Don't crash the server - cron jobs are not critical for health checks
-        }
+        await ensureAdminUser();
+        log("✓ Admin initialization complete");
+
+        initializeCronJobs();
+        log("✓ Cron jobs initialized");
       });
     });
   } catch (error) {
-    console.error('Fatal error during server initialization:', error);
+    console.error("🔥 Fatal server error:", error);
     process.exit(1);
   }
 })();
