@@ -5,7 +5,6 @@ import connectPgSimple from "connect-pg-simple";
 
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { DatabaseStorage } from "./storage";
 import { initializeCronJobs } from "./cronJobs";
 import { pgPool, ensureAdminUser } from "./db";
 
