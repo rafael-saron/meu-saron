@@ -1,14 +1,14 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@shared/schema";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL must be set.");
 }
 
 /**
- * Pool PostgreSQL (Railway - TCP)
+ * Pool PostgreSQL (Railway)
  */
 export const pgPool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -26,7 +26,7 @@ export const db = drizzle(pgPool, {
 });
 
 /**
- * Função para garantir que o usuário admin exista
+ * Garante usuário admin
  */
 export async function ensureAdminUser() {
   const adminUsername = "admin";
