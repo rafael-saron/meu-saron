@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import logoSaron from "@assets/Logo Saron_1763050286995.png";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Usuário é obrigatório"),
@@ -73,12 +72,12 @@ export default function Login() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-6">
-            <img 
-              src={logoSaron} 
-              alt="Logo Saron" 
-              className="h-24 w-auto object-contain dark:invert dark:brightness-0 dark:contrast-200"
-              data-testid="img-logo-saron"
-            />
+           <img
+  src="/logo-saron.png"
+  alt="Logo Saron"
+  className="h-24 w-auto object-contain dark:invert dark:brightness-0 dark:contrast-200"
+  data-testid="img-logo-saron"
+          />
           </div>
           <CardTitle className="text-3xl font-display font-bold text-primary">
             Meu Saron
