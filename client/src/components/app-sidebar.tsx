@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useUser } from "@/lib/user-context";
 import { useUnreadCount } from "@/hooks/use-unread-count";
-import logoUrl from "@assets/Logo Saron_1763050286995.png";
+const logoUrl = "/logo-saron.png";
 
 const allMenuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, roles: ["administrador", "gerente", "vendedor", "financeiro", "caixa"] },
