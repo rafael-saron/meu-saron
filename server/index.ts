@@ -5,9 +5,8 @@ import connectPgSimple from "connect-pg-simple";
 
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { DatabaseStorage } from "./storage";
 import { initializeCronJobs } from "./cronJobs";
-import { pgPool } from "./db";
+import { pgPool, ensureAdminUser } from "./db";
 
 const app = express();
 
@@ -117,33 +116,6 @@ app.use((req, res, next) => {
 });
 
 /**
- * Garante usuário admin
- */
-async function ensureAdminUser() {
-  try {
-    const storage = new DatabaseStorage();
-    const admin = await storage.getUserByUsername("admin");
-
-    if (!admin) {
-      await storage.createUser({
-        username: "admin",
-        email: "admin@vistasaron.com.br",
-        password: "admin123",
-        fullName: "Administrador",
-        role: "administrador",
-        isActive: true,
-      });
-      log("✅ Admin user created");
-    } else if (!admin.isActive) {
-      await storage.updateUser(admin.id, { isActive: true });
-      log("✅ Admin user reactivated");
-    }
-  } catch (err) {
-    console.error("❌ Error ensuring admin user:", err);
-  }
-}
-
-/**
  * Bootstrap do servidor
  */
 (async () => {
@@ -173,16 +145,16 @@ async function ensureAdminUser() {
 
     const port = Number(process.env.PORT || 3000);
 
-    server.listen(port, "0.0.0.0", () => {
+    server.listen(port, "0.0.0.0", async () => {
       log(`🚀 Server running on port ${port}`);
 
-      setImmediate(async () => {
-        await ensureAdminUser();
-        log("✓ Admin initialization complete");
+      // Cria ou ativa usuário admin
+      await ensureAdminUser();
+      log("✓ Admin initialization complete");
 
-        initializeCronJobs();
-        log("✓ Cron jobs initialized");
-      });
+      // Inicializa cron jobs
+      initializeCronJobs();
+      log("✓ Cron jobs initialized");
     });
   } catch (error) {
     console.error("🔥 Fatal server error:", error);
