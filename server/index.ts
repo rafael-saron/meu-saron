@@ -12,12 +12,17 @@ import { pgPool } from "./db";
 const app = express();
 
 /**
+ * Express + PostgreSQL session store
+ */
+const PgSession = connectPgSimple(session);
+
+/**
  * Railway / Reverse proxy
  */
 app.set("trust proxy", 1);
 
 /**
- * Health checks (precisam vir antes de tudo)
+ * Health checks (Railway)
  */
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
@@ -71,7 +76,7 @@ app.use(
     saveUninitialized: false,
     proxy: isProd,
     cookie: {
-      secure: isProd,                 // ❗ false em localhost
+      secure: isProd,
       sameSite: isProd ? "none" : "lax",
       httpOnly: true,
       maxAge: 1000 * 60 * 60 * 24 * 7,
@@ -99,7 +104,9 @@ app.use((req, res, next) => {
 
       if (res.locals.body) {
         const bodyStr = JSON.stringify(res.locals.body);
-        logLine += ` :: ${bodyStr.length > 80 ? bodyStr.slice(0, 79) + "…" : bodyStr}`;
+        logLine += ` :: ${
+          bodyStr.length > 80 ? bodyStr.slice(0, 79) + "…" : bodyStr
+        }`;
       }
 
       log(logLine);
@@ -146,19 +153,25 @@ async function ensureAdminUser() {
     app.use(
       (err: any, _req: Request, res: Response, _next: NextFunction) => {
         const status = err.status || err.statusCode || 500;
-        res.status(status).json({ message: err.message || "Internal Server Error" });
+        res.status(status).json({
+          message: err.message || "Internal Server Error",
+        });
       }
     );
 
     app.use("/uploads", express.static("public/uploads"));
 
-    if (app.get("env") === "development") {
+    /**
+     * ⚠️ IMPORTANTE:
+     * Railway = produção SEMPRE
+     */
+    if (process.env.NODE_ENV === "development") {
       await setupVite(app, server);
     } else {
       serveStatic(app);
     }
 
-    const port = Number(process.env.PORT || 5000);
+    const port = Number(process.env.PORT || 3000);
 
     server.listen(port, "0.0.0.0", () => {
       log(`🚀 Server running on port ${port}`);
