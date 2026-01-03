@@ -1,5 +1,6 @@
 import { Pool } from "pg";
-import { drizzle, eq } from "drizzle-orm/node-postgres";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { eq } from "drizzle-orm"; // CORRETO
 import * as schema from "@shared/schema";
 import bcrypt from "bcryptjs";
 
@@ -35,7 +36,6 @@ export async function ensureAdminUser() {
 
   const passwordHash = await bcrypt.hash(adminPassword, 10);
 
-  // Filtro correto usando eq()
   const existingAdmin = await db
     .select()
     .from(schema.users)
