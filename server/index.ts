@@ -5,6 +5,7 @@ import connectPgSimple from "connect-pg-simple";
 
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { DatabaseStorage } from "./storage";
 import { initializeCronJobs } from "./cronJobs";
 import { pgPool, ensureAdminUser } from "./db";
 
@@ -148,11 +149,10 @@ app.use((req, res, next) => {
     server.listen(port, "0.0.0.0", async () => {
       log(`🚀 Server running on port ${port}`);
 
-      // Cria ou ativa usuário admin
+      // ✅ Garante admin e inicializa cron jobs
       await ensureAdminUser();
       log("✓ Admin initialization complete");
 
-      // Inicializa cron jobs
       initializeCronJobs();
       log("✓ Cron jobs initialized");
     });
