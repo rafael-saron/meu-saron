@@ -30,6 +30,7 @@ export const db = drizzle(pgPool, {
  */
 export async function ensureAdminUser() {
   const adminUsername = "admin";
+  const adminEmail = "admin@vistasaron.com.br";
   const adminPassword = "admin123";
 
   // Hash da senha
@@ -44,12 +45,21 @@ export async function ensureAdminUser() {
   if (existingAdmin.length === 0) {
     await db.insert(schema.users).values({
       username: adminUsername,
+      email: adminEmail,
       password: passwordHash,
-      role: "admin",
+      full_name: "Administrador",
+      role: "administrador",
+      is_active: true,
       created_at: new Date(),
     });
-    console.log("Admin user created successfully");
+    console.log("✅ Admin user created");
+  } else if (!existingAdmin[0].is_active) {
+    await db
+      .update(schema.users)
+      .set({ is_active: true })
+      .where(schema.users.id.eq(existingAdmin[0].id));
+    console.log("✅ Admin user reactivated");
   } else {
-    console.log("Admin user already exists");
+    console.log("Admin user already exists and active");
   }
 }
