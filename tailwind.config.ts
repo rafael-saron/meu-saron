@@ -1,21 +1,24 @@
 import type { Config } from "tailwindcss";
 
-export default {
+const config: Config = {
   darkMode: ["class"],
-  content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
+  content: [
+    "./client/index.html",
+    "./client/src/**/*.{js,jsx,ts,tsx}",
+  ],
   theme: {
     extend: {
       borderRadius: {
-        lg: ".5625rem", /* 9px */
-        md: ".375rem", /* 6px */
-        sm: ".1875rem", /* 3px */
+        lg: "0.5625rem", // 9px
+        md: "0.375rem",  // 6px
+        sm: "0.1875rem", // 3px
       },
       colors: {
-        // Flat / base colors (regular buttons)
         background: "hsl(var(--background) / <alpha-value>)",
         foreground: "hsl(var(--foreground) / <alpha-value>)",
         border: "hsl(var(--border) / <alpha-value>)",
         input: "hsl(var(--input) / <alpha-value>)",
+
         card: {
           DEFAULT: "hsl(var(--card) / <alpha-value>)",
           foreground: "hsl(var(--card-foreground) / <alpha-value>)",
@@ -52,18 +55,20 @@ export default {
           border: "var(--destructive-border)",
         },
         ring: "hsl(var(--ring) / <alpha-value>)",
+
         chart: {
-          "1": "hsl(var(--chart-1) / <alpha-value>)",
-          "2": "hsl(var(--chart-2) / <alpha-value>)",
-          "3": "hsl(var(--chart-3) / <alpha-value>)",
-          "4": "hsl(var(--chart-4) / <alpha-value>)",
-          "5": "hsl(var(--chart-5) / <alpha-value>)",
+          1: "hsl(var(--chart-1) / <alpha-value>)",
+          2: "hsl(var(--chart-2) / <alpha-value>)",
+          3: "hsl(var(--chart-3) / <alpha-value>)",
+          4: "hsl(var(--chart-4) / <alpha-value>)",
+          5: "hsl(var(--chart-5) / <alpha-value>)",
         },
+
         sidebar: {
-          ring: "hsl(var(--sidebar-ring) / <alpha-value>)",
           DEFAULT: "hsl(var(--sidebar) / <alpha-value>)",
           foreground: "hsl(var(--sidebar-foreground) / <alpha-value>)",
           border: "hsl(var(--sidebar-border) / <alpha-value>)",
+          ring: "hsl(var(--sidebar-ring) / <alpha-value>)",
         },
         "sidebar-primary": {
           DEFAULT: "hsl(var(--sidebar-primary) / <alpha-value>)",
@@ -73,8 +78,9 @@ export default {
         "sidebar-accent": {
           DEFAULT: "hsl(var(--sidebar-accent) / <alpha-value>)",
           foreground: "hsl(var(--sidebar-accent-foreground) / <alpha-value>)",
-          border: "var(--sidebar-accent-border)"
+          border: "var(--sidebar-accent-border)",
         },
+
         status: {
           online: "rgb(34 197 94)",
           away: "rgb(245 158 11)",
@@ -82,12 +88,27 @@ export default {
           offline: "rgb(156 163 175)",
         },
       },
+
+      borderColor: ({ theme }) => ({
+        DEFAULT: theme("colors.border"),
+        card: theme("colors.card.border"),
+        primary: theme("colors.primary.border"),
+        secondary: theme("colors.secondary.border"),
+        muted: theme("colors.muted.border"),
+        accent: theme("colors.accent.border"),
+        destructive: theme("colors.destructive.border"),
+        sidebar: theme("colors.sidebar.border"),
+        "sidebar-primary": theme("colors.sidebar-primary.border"),
+        "sidebar-accent": theme("colors.sidebar-accent.border"),
+      }),
+
       fontFamily: {
         sans: ["var(--font-sans)", "Inter", "sans-serif"],
         serif: ["var(--font-serif)"],
         mono: ["var(--font-mono)"],
         display: ["Poppins", "var(--font-sans)", "sans-serif"],
       },
+
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
@@ -104,5 +125,10 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
-} satisfies Config;
+  plugins: [
+    require("tailwindcss-animate"),
+    require("@tailwindcss/typography"),
+  ],
+};
+
+export default config;
